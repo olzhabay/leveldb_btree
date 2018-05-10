@@ -8,6 +8,7 @@
 #include "leveldb/env.h"
 #include "leveldb/iterator.h"
 #include "util/coding.h"
+#include "util/persist.h"
 
 namespace leveldb {
 
@@ -92,7 +93,7 @@ void MemTable::Add(SequenceNumber s, ValueType type,
   size_t internal_key_size = key_size + 8;
   const size_t encoded_len =
       VarintLength(internal_key_size) + internal_key_size +
-      VarintLength(val_size) + val_size;
+          VarintLength(val_size) + val_size;
   char* buf = arena_.Allocate(encoded_len);
   char* p = EncodeVarint32(buf, internal_key_size);
   memcpy(p, key.data(), key_size);

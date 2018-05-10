@@ -3,6 +3,7 @@
 #include "leveldb/slice.h"
 #include "leveldb/index.h"
 #include "db/index_iterator.h"
+#include "util/perf_log.h"
 
 namespace leveldb {
 
@@ -13,8 +14,16 @@ Index::Index()
 }
 
 const IndexMeta* Index::Get(const Slice& key) {
+#ifdef PERF_LOG
+  uint64_t start_micros = NowMicros();
+#endif
   auto result = tree_.search(fast_atoi(key.data(), key.size()));
+#ifdef PERF_LOG
+  uint64_t micros = NowMicros() - start_micros;
+  logMicro(INDEX, micros);
+#endif
   return reinterpret_cast<const IndexMeta *>(result);
+
 }
 
 void Index::Insert(const uint32_t& key, IndexMeta* meta) {

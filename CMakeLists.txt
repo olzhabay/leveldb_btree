@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(leveldb C CXX)
+project(leveldb_btree C CXX)
 set(CMAKE_DEBUG_POSTFIX "d")
 
 set(SNAPPY_LIBRARY "")
@@ -156,7 +156,8 @@ set(LEVEL_DB_FILES
         port/atomic_pointer.h
         db/index_iterator.h
         db/index_iterator.cc
-        )
+        util/perf_log.cc
+        util/perf_log.h)
 
 if(WIN32)
     list(APPEND LEVEL_DB_FILES

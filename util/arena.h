@@ -10,9 +10,6 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "port/port.h"
-#if QUARTZ
-#include "quartz/src/lib/pmalloc.h"
-#endif
 
 namespace leveldb {
 

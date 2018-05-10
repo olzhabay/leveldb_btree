@@ -18,6 +18,7 @@
 #include "util/random.h"
 #include "util/testutil.h"
 #include "leveldb/index.h"
+#include "util/perf_log.h"
 
 
 // Comma-separated list of operations to run in the specified order
@@ -986,6 +987,9 @@ class Benchmark {
 }  // namespace leveldb
 
 int main(int argc, char** argv) {
+#ifdef PERF_LOG
+  leveldb::createPerfLog();
+#endif
   FLAGS_write_buffer_size = leveldb::Options().write_buffer_size;
   FLAGS_max_file_size = leveldb::Options().max_file_size;
   FLAGS_block_size = leveldb::Options().block_size;
@@ -1048,5 +1052,8 @@ int main(int argc, char** argv) {
 
   leveldb::Benchmark benchmark;
   benchmark.Run();
+#ifdef PERF_LOG
+  leveldb::closePerfLog();
+#endif
   return 0;
 }

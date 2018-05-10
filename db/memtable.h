@@ -6,7 +6,6 @@
 #define STORAGE_LEVELDB_DB_MEMTABLE_H_
 
 #include <string>
-#include "util/persist.h"
 #include "leveldb/db.h"
 #include "db/dbformat.h"
 #include "db/skiplist.h"
@@ -15,7 +14,6 @@
 namespace leveldb {
 
 class InternalKeyComparator;
-class Mutex;
 class MemTableIterator;
 
 class MemTable {
@@ -78,7 +76,6 @@ class MemTable {
   int refs_;
   Arena arena_;
   Table table_;
-  //GlobalIndex index_;
 
   // No copying allowed
   MemTable(const MemTable&);

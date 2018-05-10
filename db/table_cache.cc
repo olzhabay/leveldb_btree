@@ -2,12 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
+#include <table/format.h>
+#include <table/block.h>
 #include "db/table_cache.h"
 
 #include "db/filename.h"
 #include "leveldb/env.h"
 #include "leveldb/table.h"
 #include "util/coding.h"
+#include "util/perf_log.h"
 
 namespace leveldb {
 
@@ -132,6 +135,36 @@ Status TableCache::Get2(const ReadOptions& options,
   if (s.ok()) {
     Table* t = reinterpret_cast<TableAndFile*>(cache_->Value(handle))->table;
     s = t->InternalGet2(options, k, block_handle, arg, saver);
+    cache_->Release(handle);
+  }
+  return s;
+}
+
+Status TableCache::Get3(const ReadOptions& options,
+                        uint64_t file_number,
+                        const BlockHandle& block_handle,
+                        const Slice& k,
+                        void* arg,
+                        void(*saver)(void*, const Slice&, const Slice&)) {
+  Cache::Handle* handle = NULL;
+  Status s = FindTable(file_number, 0, &handle);
+  if (s.ok()) {
+    RandomAccessFile* file = reinterpret_cast<TableAndFile*>(cache_->Value(handle))->file;
+    BlockContents contents;
+#ifdef PERF_LOG
+    uint64_t start_micros = NowMicros();
+#endif
+    s = ReadBlock(file, options, block_handle, &contents);
+#ifdef PERF_LOG
+    uint64_t micros = NowMicros() - start_micros;
+    logMicro(BLOCK, micros);
+#endif
+    Block block(contents);
+    Iterator* block_iter = block.NewIterator(options_->comparator);
+    block_iter->Seek(k);
+    (*saver)(arg, block_iter->key(), block_iter->value());
+    s = block_iter->status();
+    delete block_iter;
     cache_->Release(handle);
   }
   return s;

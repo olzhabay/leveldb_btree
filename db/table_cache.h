@@ -72,6 +72,13 @@ class TableCache {
               void* arg,
               void(*handle_result)(void*, const Slice&, const Slice&));
 
+  Status Get3(const ReadOptions& options,
+              uint64_t file_number,
+              const BlockHandle& block_handle,
+              const Slice& k,
+              void* arg,
+              void(*handle_result)(void*, const Slice&, const Slice&));
+
   Status GetTable(uint64_t file_number, TableHandle* table_handle);
 
   // Evict any entry for the specified file number
