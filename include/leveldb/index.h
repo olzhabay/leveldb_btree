@@ -1,5 +1,5 @@
-#ifndef STORAGE_LEVELDB_DB_INDEX_H
-#define STORAGE_LEVELDB_DB_INDEX_H
+#ifndef STORAGE_LEVELDB_INCLUDE_INDEX_H_
+#define STORAGE_LEVELDB_INCLUDE_INDEX_H_
 
 #include <cstdint>
 #include <map>
@@ -91,4 +91,4 @@ class Index {
 
 } // namespace leveldb
 
-#endif //STORAGE_LEVELDB_DB_GLOBAL_INDEX_H
+#endif // STORAGE_LEVELDB_INCLUDE_INDEX_H_

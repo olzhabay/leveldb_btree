@@ -153,7 +153,7 @@ set(LEVEL_DB_FILES
         index/index_iterator.h
         index/index_iterator.cc
         util/perf_log.cc
-        util/perf_log.h)
+        util/perf_log.h index/ff_btree.h)
 
 if(WIN32)
     list(APPEND LEVEL_DB_FILES

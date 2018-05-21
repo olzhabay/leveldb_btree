@@ -1,5 +1,5 @@
-#ifndef STORAGE_LEVELDB_DB_INDEX_ITERATOR_H
-#define STORAGE_LEVELDB_DB_INDEX_ITERATOR_H
+#ifndef STORAGE_LEVELDB_INDEX_INDEX_ITERATOR_H_
+#define STORAGE_LEVELDB_INDEX_INDEX_ITERATOR_H_
 
 #include <vector>
 #include "leveldb/iterator.h"
@@ -43,4 +43,4 @@ class IndexIterator : public Iterator {
 
 }
 
-#endif //STORAGE_LEVELDB_DB_INDEX_ITERATOR_H
+#endif // STORAGE_LEVELDB_INDEX_INDEX_ITERATOR_H_

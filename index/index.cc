@@ -3,7 +3,6 @@
 #include "leveldb/slice.h"
 #include "leveldb/index.h"
 #include "index_iterator.h"
-#include "util/perf_log.h"
 
 namespace leveldb {
 
