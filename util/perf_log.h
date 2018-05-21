@@ -10,7 +10,9 @@ namespace leveldb {
 enum Type {
   INDEX = 0,
   VERSION = 1,
-  BLOCK = 2
+  BLOCK = 2,
+  READER_F = 3,
+  READER_M = 4
 };
 
 extern void logMicro(Type, uint64_t);

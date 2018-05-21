@@ -20,11 +20,6 @@ else(CMAKE_COMPILER_IS_GNUCXX OR CLANG)
     set(Stdcpp_LIBRARY "")
 endif(CMAKE_COMPILER_IS_GNUCXX OR CLANG)
 
-#find_package(Numa REQUIRED)
-#include_directories(${NUMA_INCLUDE_DIRS}
-#        ${CMAKE_CURRENT_SOURCE_DIR}
-#        include)
-
 include_directories(${Boost_INCLUDE_DIRS}
         ${CMAKE_CURRENT_SOURCE_DIR}
         include)
@@ -51,6 +46,7 @@ add_definitions(-DOS_LINUX)
 add_definitions(-DLEVELDB_PLATFORM_POSIX)
 add_definitions(-fno-builtin-memcmp)
 add_definitions(-Wint-to-pointer-cast)
+add_definitions(-DPERF_LOG=1)
 
 set(LEVEL_DB_FILES
         include/leveldb/c.h
@@ -101,9 +97,9 @@ set(LEVEL_DB_FILES
         db/version_set.h
         db/write_batch.cc
         db/write_batch_internal.h
-        db/index.cc
-        db/nvm_btree.cc
-        db/nvm_btree.h
+        index/index.cc
+        index/nvm_btree.cc
+        index/nvm_btree.h
         db/logger.cc
         db/logger.h
         table/block.cc
@@ -154,8 +150,8 @@ set(LEVEL_DB_FILES
         util/testutil.cc
         port/port.h
         port/atomic_pointer.h
-        db/index_iterator.h
-        db/index_iterator.cc
+        index/index_iterator.h
+        index/index_iterator.cc
         util/perf_log.cc
         util/perf_log.h)
 
@@ -188,7 +184,6 @@ target_link_libraries(leveldb
         PRIVATE
         ${Boost_LIBRARIES}
         ${Pthread_LIBRARY}
-#        ${NUMA_LIBRARY}
         )
 
 INSTALL(TARGETS leveldb ARCHIVE DESTINATION /usr/local/lib PUBLIC_HEADER DESTINATION /usr/local/include/leveldb)

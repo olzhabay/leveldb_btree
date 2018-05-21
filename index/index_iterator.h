@@ -4,10 +4,10 @@
 #include <vector>
 #include "leveldb/iterator.h"
 #include "leveldb/index.h"
-#include "db/nvm_btree.h"
+#include "index/nvm_btree.h"
 #include "table/format.h"
-#include "version_set.h"
-#include "table_cache.h"
+#include "db/version_set.h"
+#include "db/table_cache.h"
 
 namespace leveldb {
 

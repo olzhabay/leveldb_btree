@@ -452,6 +452,17 @@ Status Version::Get2(const ReadOptions& options,
     saver.value = value;
     s = vset_->table_cache_->Get3(options, index_meta->file_number, block_handle,
                                   ikey, &saver, SaveValue);
+
+    stats->seek_file = nullptr;
+    try {
+      auto file = metadata_map_.at(index_meta->file_number);
+      if (file.second <= 1) {
+        stats->seek_file = file.first;
+        stats->seek_file_level = file.second;
+      }
+    } catch (std::exception& e) {
+    }
+
     if (!s.ok()) {
       return s;
     }
@@ -852,6 +863,7 @@ class VersionSet::Builder {
       }
       f->refs++;
       files->push_back(f);
+      v->metadata_map_.insert({f->number, {f, level}});
     }
   }
 };

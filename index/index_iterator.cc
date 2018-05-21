@@ -1,6 +1,6 @@
 #include <util/coding.h>
 #include "index_iterator.h"
-#include "dbformat.h"
+#include "db/dbformat.h"
 
 namespace leveldb {
 
@@ -90,7 +90,7 @@ void IndexIterator::IndexChange() {
     block_iterator_ = table_handle_->table_->BlockReader2(
         table_handle_->table_, options_, index_ptr_->handle);
     char k[100];
-    snprintf(k, sizeof(k), "%016d", (*iterator_)->key);
+    snprintf(k, sizeof(k), "%016lu", (*iterator_)->key);
     std::string key = k;
     LookupKey lkey(k, vset_->LastSequence());
     block_iterator_->Seek(lkey.internal_key());

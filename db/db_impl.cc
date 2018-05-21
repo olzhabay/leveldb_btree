@@ -33,7 +33,10 @@
 #include "util/coding.h"
 #include "util/logging.h"
 #include "util/mutexlock.h"
+
+#ifdef PERF_LOG
 #include "util/perf_log.h"
+#endif
 
 namespace leveldb {
 
@@ -1225,9 +1228,9 @@ Status DBImpl::Get(const ReadOptions& options,
     mutex_.Lock();
   }
 
-//  if (have_stat_update && current->UpdateStats(stats)) {
-//    MaybeScheduleCompaction();
-//  }
+  if (have_stat_update && current->UpdateStats(stats)) {
+    MaybeScheduleCompaction();
+  }
   mem->Unref();
   if (imm != NULL) imm->Unref();
   current->Unref();

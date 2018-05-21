@@ -5,12 +5,13 @@
 #include <table/format.h>
 #include <table/block.h>
 #include "db/table_cache.h"
-
 #include "db/filename.h"
 #include "leveldb/env.h"
 #include "leveldb/table.h"
 #include "util/coding.h"
+#ifdef PERF_LOG
 #include "util/perf_log.h"
+#endif
 
 namespace leveldb {
 

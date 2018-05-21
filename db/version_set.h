@@ -18,6 +18,7 @@
 #include <map>
 #include <set>
 #include <vector>
+#include <unordered_map>
 #include "db/dbformat.h"
 #include "db/version_edit.h"
 #include "port/port.h"
@@ -143,6 +144,7 @@ class Version {
 
   // List of files per level
   std::vector<FileMetaData*> files_[config::kNumLevels];
+  std::unordered_map<uint64_t, std::pair<FileMetaData*, uint64_t>> metadata_map_;
 
   // Next file to compact based on seek stats.
   FileMetaData* file_to_compact_;
