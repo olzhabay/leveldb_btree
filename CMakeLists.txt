@@ -118,10 +118,6 @@ set(LEVEL_DB_FILES
         table/table_builder.cc
         table/two_level_iterator.cc
         table/two_level_iterator.h
-        table/raw_block_builder.cc
-        table/raw_block_builder.h
-        table/raw_table_builder.cc
-        table/raw_table_builder.h
         util/arena.cc
         util/arena.h
         util/bloom.cc
@@ -153,7 +149,10 @@ set(LEVEL_DB_FILES
         index/index_iterator.h
         index/index_iterator.cc
         util/perf_log.cc
-        util/perf_log.h index/ff_btree.h)
+        util/perf_log.h
+        index/btree.h
+        index/ff_btree.h
+        index/ff_btree.cc)
 
 if(WIN32)
     list(APPEND LEVEL_DB_FILES
@@ -200,8 +199,8 @@ target_link_libraries(simple_bench PUBLIC leveldb)
 add_executable(sanity_check bench/sanity_check.cc)
 target_link_libraries(sanity_check PUBLIC leveldb)
 
-add_executable(raw_table_test table/raw_table_test.cc)
-target_link_libraries(raw_table_test PUBLIC leveldb)
+add_executable(ff_btree_test index/ff_btree_test.cc)
+target_link_libraries(ff_btree_test PUBLIC leveldb)
 
 add_executable(db_bench db/db_bench.cc)
 target_link_libraries(db_bench PUBLIC leveldb)

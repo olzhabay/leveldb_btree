@@ -13,7 +13,7 @@ Index::Index()
 }
 
 const IndexMeta* Index::Get(const Slice& key) {
-  auto result = tree_.search(fast_atoi(key.data(), key.size()));
+  auto result = tree_.Search(fast_atoi(key.data(), key.size()));
   return reinterpret_cast<const IndexMeta *>(result);
 }
 
@@ -21,15 +21,11 @@ void Index::Insert(const uint32_t& key, IndexMeta* meta) {
   IndexMeta* m = meta;
   clflush((char *) m, sizeof(IndexMeta));
   clflush((char *) &key, sizeof(uint32_t));
-  tree_.insert(key, m);
-}
-
-void Index::Update(const uint32_t& key, const uint32_t& fnumber, IndexMeta* meta) {
-  tree_.update(key,  meta);
+  tree_.Insert(key, (char*) m);
 }
 
 Iterator* Index::Range(const uint32_t& begin, const uint32_t& end, void* ptr) {
-  std::vector<LeafEntry*> entries = tree_.range(begin, end);
+  std::vector<LeafEntry*> entries = tree_.Range(begin, end);
   Iterator* iter = new IndexIterator(entries, ptr);
   return iter;
 }

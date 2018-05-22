@@ -73,7 +73,7 @@ Status IndexIterator::status() const {
 void IndexIterator::IndexChange() {
   bool changed = false;
   it++;
-  if (index_ptr_ != (*iterator_)->ptr) {
+  if ((char*)index_ptr_ != (*iterator_)->ptr) {
     if (index_ptr_) index_ptr_->Unref();
     index_ptr_ = reinterpret_cast<IndexMeta*>((*iterator_)->ptr);
     index_ptr_->Ref();
