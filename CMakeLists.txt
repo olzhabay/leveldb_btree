@@ -36,8 +36,8 @@ else()
     add_compile_options(
             -Wno-sign-compare
             -std=c++17
-            -O2
-            -DNDEBUG
+#            -O2
+#            -DNDEBUG
     )
 endif()
 

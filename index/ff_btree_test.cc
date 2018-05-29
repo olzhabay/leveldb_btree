@@ -20,8 +20,9 @@ TEST(FFBtreeTest, DuplicateKeys) {
     map.insert({i, (char*) j});
   }
   for (int64_t i = 1; i < 100; i++) {
-    char* j = btree.Search(i);
-    ASSERT_EQ(j, map.at(i));
+    uint64_t val1 = reinterpret_cast<uint64_t>(btree.Search(i));
+    uint64_t val2 = reinterpret_cast<uint64_t>(map.at(i));
+    ASSERT_EQ(val1, val2);
   }
 }
 

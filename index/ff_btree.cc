@@ -31,10 +31,10 @@ char *FFBtree::Search(entry_key_t key){
     }
   }
 
-  if(!t || (char *)t != (char *)key) {
-    // printf("NOT FOUND %lu, t = %x\n", key, t);
-    return NULL;
-  }
+//  if(!t || (char *)t != (char *)key) {
+//    // printf("NOT FOUND %lu, t = %x\n", key, t);
+//    return NULL;
+//  }
 
   return (char *)t;
 }

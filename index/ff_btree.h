@@ -396,6 +396,17 @@ public:
           clflush((char*) &(records[*num_entries + 1].ptr), sizeof(char*));
       }
 
+      // check for duplicate key
+      for (i = *num_entries - 1; i >=0; i--) {
+        if (key == records[i].key) {
+          records[i].ptr = ptr;
+          if (flush) {
+            clflush((char*) &records[0], sizeof(Entry));
+          }
+          return;
+        }
+      }
+
       // FAST
       for (i = *num_entries - 1; i >= 0; i--) {
         if (key < records[i].key) {
