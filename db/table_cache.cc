@@ -155,7 +155,7 @@ Status TableCache::Get3(const ReadOptions& options,
 #ifdef PERF_LOG
     uint64_t start_micros = NowMicros();
 #endif
-    s = ReadBlock(file, options, block_handle, &contents);
+    s = ReadBlock2(file, options, block_handle, &contents);
 #ifdef PERF_LOG
     uint64_t micros = NowMicros() - start_micros;
     logMicro(BLOCK, micros);

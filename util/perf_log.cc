@@ -1,12 +1,14 @@
 #include <cstdio>
 #include <sys/time.h>
 #include <cstdint>
+#include <cstdarg>
 #include "perf_log.h"
 
 namespace leveldb {
 
 static FILE* version_log;
 static FILE* block_log;
+static FILE* reader_log;
 static FILE* reader_f_log;
 static FILE* reader_m_log;
 
@@ -27,6 +29,16 @@ void logMicro(Type type, uint64_t micro) {
   }
 }
 
+
+extern void logFileReader(const char* format, ...) {
+  char p[200];
+  va_list ap;
+  va_start(ap, format);
+  vsnprintf(p, sizeof(p), format, ap);
+  va_end(ap);
+  fprintf(reader_log, "%s\n", p);
+}
+
 uint64_t NowMicros() {
   struct timeval tv;
   gettimeofday(&tv, NULL);
@@ -36,6 +48,7 @@ uint64_t NowMicros() {
 void createPerfLog() {
   version_log = fopen("version_log", "w");
   block_log = fopen("block_log", "w");
+  reader_log = fopen("reader_log", "w");
   reader_f_log = fopen("reader_f_log", "w");
   reader_m_log = fopen("reader_m_log", "w");
 }
@@ -44,6 +57,7 @@ void createPerfLog() {
 void closePerfLog() {
   fclose(version_log);
   fclose(block_log);
+  fclose(reader_log);
   fclose(reader_f_log);
   fclose(reader_m_log);
 }

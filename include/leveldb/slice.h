@@ -26,7 +26,7 @@ namespace leveldb {
 class LEVELDB_EXPORT Slice {
  public:
   // Create an empty slice.
-  Slice() : data_(""), size_(0) { }
+  Slice() : data_(nullptr), size_(0) { }
 
   // Create a slice that refers to d[0,n-1].
   Slice(const char* d, size_t n) : data_(d), size_(n) { }
@@ -36,6 +36,10 @@ class LEVELDB_EXPORT Slice {
 
   // Create a slice that refers to s[0,strlen(s)-1]
   Slice(const char* s) : data_(s), size_(strlen(s)) { }
+
+  // Intentionally copyable.
+  Slice(const Slice&) = default;
+  Slice& operator=(const Slice&) = default;
 
   // Return a pointer to the beginning of the referenced data
   const char* data() const { return data_; }

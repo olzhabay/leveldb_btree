@@ -293,7 +293,7 @@ uint32_t Extend(uint32_t crc, const char* buf, size_t size) {
 // Process one of the 4 strides of 4-byte data.
 #define STEP4(s)                                                               \
   do {                                                                         \
-    crc##s = ReadUint32LE(p + s * 4) ^ kStrideExtensionTable3[crc##s & 0xff] ^ \
+    crc##s = ReadUint32LE(p + (s) * 4) ^ kStrideExtensionTable3[crc##s & 0xff] ^ \
              kStrideExtensionTable2[(crc##s >> 8) & 0xff] ^                    \
              kStrideExtensionTable1[(crc##s >> 16) & 0xff] ^                   \
              kStrideExtensionTable0[crc##s >> 24];                             \
@@ -312,9 +312,9 @@ uint32_t Extend(uint32_t crc, const char* buf, size_t size) {
 // Process 4 bytes that were already loaded into a word.
 #define STEP4W(w)                                   \
   do {                                              \
-    w ^= l;                                         \
+    (w) ^= l;                                         \
     for (size_t i = 0; i < 4; ++i) {                \
-      w = (w >> 8) ^ kByteExtensionTable[w & 0xff]; \
+      (w) = ((w) >> 8) ^ kByteExtensionTable[(w) & 0xff]; \
     }                                               \
     l = w;                                          \
   } while (0)

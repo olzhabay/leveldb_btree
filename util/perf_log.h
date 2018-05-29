@@ -17,6 +17,8 @@ enum Type {
 
 extern void logMicro(Type, uint64_t);
 
+extern void logFileReader(const char* format, ...);
+
 extern uint64_t NowMicros();
 
 extern void createPerfLog();

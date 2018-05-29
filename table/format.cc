@@ -9,6 +9,9 @@
 #include "table/block.h"
 #include "util/coding.h"
 #include "util/crc32c.h"
+#ifdef PERF_LOG
+#include "util/perf_log.h"
+#endif
 
 namespace leveldb {
 
@@ -63,13 +66,12 @@ Status Footer::DecodeFrom(Slice* input) {
 }
 
 Status ReadBlock(RandomAccessFile* file,
-                 const ReadOptions& options,
-                 const BlockHandle& handle,
-                 BlockContents* result) {
+                  const ReadOptions& options,
+                  const BlockHandle& handle,
+                  BlockContents* result) {
   result->data = Slice();
   result->cachable = false;
   result->heap_allocated = false;
-
   // Read the block contents as well as the type/crc footer.
   // See table_builder.cc for the code that built this structure.
   size_t n = static_cast<size_t>(handle.size());
@@ -137,8 +139,110 @@ Status ReadBlock(RandomAccessFile* file,
       delete[] buf;
       return Status::Corruption("bad block type");
   }
+  return s;
+}
 
-  return Status::OK();
+Status ReadBlock2(RandomAccessFile* file,
+                 const ReadOptions& options,
+                 const BlockHandle& handle,
+                 BlockContents* result) {
+#ifdef PERF_LOG
+  uint64_t start_micros = NowMicros();
+#endif
+  result->data = Slice();
+  result->cachable = false;
+  result->heap_allocated = false;
+  // Read the block contents as well as the type/crc footer.
+  // See table_builder.cc for the code that built this structure.
+  size_t n = static_cast<size_t>(handle.size());
+  // char* buf = new char[n + kBlockTrailerSize];
+  char* buf = nullptr;
+  Slice contents;
+#ifdef PERF_LOG
+  uint64_t micros = NowMicros() - start_micros;
+  logFileReader("START %lu", micros);
+  start_micros = NowMicros();
+#endif
+  Status s = file->Read(handle.offset(), n + kBlockTrailerSize, &contents, buf);
+#ifdef PERF_LOG
+  micros = NowMicros() - start_micros;
+  logFileReader("READ %lu", micros);
+  start_micros = NowMicros();
+#endif
+  if (!s.ok()) {
+    if (buf != nullptr)
+      delete[] buf;
+    return s;
+  }
+  if (contents.size() != n + kBlockTrailerSize) {
+    if (buf != nullptr)
+      delete[] buf;
+    return Status::Corruption("truncated block read");
+  }
+
+  // Check the crc of the type and the block contents
+  const char* data = contents.data();    // Pointer to where Read put the data
+  if (options.verify_checksums) {
+    const uint32_t crc = crc32c::Unmask(DecodeFixed32(data + n + 1));
+    const uint32_t actual = crc32c::Value(data, n + 1);
+    if (actual != crc) {
+      if (buf != nullptr)
+        delete[] buf;
+      s = Status::Corruption("block checksum mismatch");
+      return s;
+    }
+  }
+
+  switch (data[n]) {
+    case kNoCompression:
+      if (data != buf) {
+        // File implementation gave us pointer to some other data.
+        // Use it directly under the assumption that it will be live
+        // while the file is open.
+        if (buf != nullptr)
+          delete[] buf;
+        result->data = Slice(data, n);
+        result->heap_allocated = false;
+        result->cachable = false;  // Do not double-cache
+      } else {
+        result->data = Slice(buf, n);
+        result->heap_allocated = true;
+        result->cachable = true;
+      }
+
+      // Ok
+      break;
+    case kSnappyCompression: {
+      size_t ulength = 0;
+      if (!port::Snappy_GetUncompressedLength(data, n, &ulength)) {
+        if (buf != nullptr)
+          delete[] buf;
+        return Status::Corruption("corrupted compressed block contents");
+      }
+      char* ubuf = new char[ulength];
+      if (!port::Snappy_Uncompress(data, n, ubuf)) {
+        if (buf != nullptr)
+          delete[] buf;
+        delete[] ubuf;
+        return Status::Corruption("corrupted compressed block contents");
+      }
+      if (buf != nullptr)
+        delete[] buf;
+      result->data = Slice(ubuf, ulength);
+      result->heap_allocated = true;
+      result->cachable = true;
+      break;
+    }
+    default:
+      if (buf != nullptr)
+        delete[] buf;
+      return Status::Corruption("bad block type");
+  }
+#ifdef PERF_LOG
+  micros = NowMicros() - start_micros;
+  logFileReader("FINISH %lu", micros);
+#endif
+  return s;
 }
 
 }  // namespace leveldb
