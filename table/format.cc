@@ -170,13 +170,11 @@ Status ReadBlock2(RandomAccessFile* file,
   start_micros = NowMicros();
 #endif
   if (!s.ok()) {
-    if (buf != nullptr)
-      delete[] buf;
+    delete[] buf;
     return s;
   }
   if (contents.size() != n + kBlockTrailerSize) {
-    if (buf != nullptr)
-      delete[] buf;
+    delete[] buf;
     return Status::Corruption("truncated block read");
   }
 
@@ -186,8 +184,7 @@ Status ReadBlock2(RandomAccessFile* file,
     const uint32_t crc = crc32c::Unmask(DecodeFixed32(data + n + 1));
     const uint32_t actual = crc32c::Value(data, n + 1);
     if (actual != crc) {
-      if (buf != nullptr)
-        delete[] buf;
+      delete[] buf;
       s = Status::Corruption("block checksum mismatch");
       return s;
     }
@@ -199,8 +196,7 @@ Status ReadBlock2(RandomAccessFile* file,
         // File implementation gave us pointer to some other data.
         // Use it directly under the assumption that it will be live
         // while the file is open.
-        if (buf != nullptr)
-          delete[] buf;
+        delete[] buf;
         result->data = Slice(data, n);
         result->heap_allocated = false;
         result->cachable = false;  // Do not double-cache
@@ -215,27 +211,23 @@ Status ReadBlock2(RandomAccessFile* file,
     case kSnappyCompression: {
       size_t ulength = 0;
       if (!port::Snappy_GetUncompressedLength(data, n, &ulength)) {
-        if (buf != nullptr)
-          delete[] buf;
+        delete[] buf;
         return Status::Corruption("corrupted compressed block contents");
       }
       char* ubuf = new char[ulength];
       if (!port::Snappy_Uncompress(data, n, ubuf)) {
-        if (buf != nullptr)
-          delete[] buf;
+        delete[] buf;
         delete[] ubuf;
         return Status::Corruption("corrupted compressed block contents");
       }
-      if (buf != nullptr)
-        delete[] buf;
+      delete[] buf;
       result->data = Slice(ubuf, ulength);
       result->heap_allocated = true;
       result->cachable = true;
       break;
     }
     default:
-      if (buf != nullptr)
-        delete[] buf;
+      delete[] buf;
       return Status::Corruption("bad block type");
   }
 #ifdef PERF_LOG
