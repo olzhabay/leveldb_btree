@@ -5,26 +5,26 @@
 
 namespace leveldb {
 
-class FFBtreeIterator : public Iterator {
+class BtreeIterator {
 
 public:
-  bool Valid() const override;
+  bool Valid() const ;
 
-  void SeekToFirst() override;
+  void SeekToFirst();
 
-  void SeekToLast() override;
+  void SeekToLast();
 
-  void Seek(const Slice& target) override;
+  void Seek(const Slice& target);
 
-  void Next() override;
+  void Next();
 
-  void Prev() override;
+  void Prev();
 
-  Slice key() const override;
+  // return entry key
+  int64_t key() const;
 
-  Slice value() const override;
-
-  Status status() const override;
+  // return entry pointer
+  char* value() const;
 
 };
 

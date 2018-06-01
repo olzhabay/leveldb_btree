@@ -3,40 +3,36 @@
 namespace leveldb {
 
 
-bool FFBtreeIterator::Valid() const {
+bool BtreeIterator::Valid() const {
   return false;
 }
 
-void FFBtreeIterator::SeekToFirst() {
+void BtreeIterator::SeekToFirst() {
 
 }
 
-void FFBtreeIterator::SeekToLast() {
+void BtreeIterator::SeekToLast() {
 
 }
 
-void FFBtreeIterator::Seek(const Slice& target) {
+void BtreeIterator::Seek(const Slice& target) {
 
 }
 
-void FFBtreeIterator::Next() {
+void BtreeIterator::Next() {
 
 }
 
-void FFBtreeIterator::Prev() {
+void BtreeIterator::Prev() {
 
 }
 
-Slice FFBtreeIterator::key() const {
-  return Slice();
+int64_t BtreeIterator::key() const {
+  return 0;
 }
 
-Slice FFBtreeIterator::value() const {
-  return Slice();
-}
-
-Status FFBtreeIterator::status() const {
-  return Status();
+char* BtreeIterator::value() const {
+  return nullptr;
 }
 
 } // namespace leveldb

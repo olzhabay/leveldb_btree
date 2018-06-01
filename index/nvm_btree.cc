@@ -211,10 +211,6 @@ vector<LeafEntry*> NVMBtree::Range(int64_t min, int64_t max) {
   return std::move(ret);
 }
 
-Iterator* NVMBtree::GetIterator() {
-  return nullptr;
-}
-
 void NVMBtree::Remove(int64_t key) {
   Node* p = root, * lSib = NULL;
   iNode* parent = NULL, * grandParent = NULL;

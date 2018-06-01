@@ -148,7 +148,7 @@ void FFBtree::Range(entry_key_t min, entry_key_t max, unsigned long* buf) {
   }
 }
 
-Iterator* FFBtree::GetIterator() {
+BtreeIterator* FFBtree::GetIterator() {
   return nullptr;
 }
 

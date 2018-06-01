@@ -329,8 +329,6 @@ public:
 
   void Remove(int64_t);
 
-  Iterator* GetIterator();
-
   vector<LeafEntry*> Range(int64_t, int64_t);
 
   // Helper

@@ -18,6 +18,7 @@
 #include "index/btree.h"
 #include "util/persist.h"
 #include "leveldb/iterator.h"
+#include "index/ff_btree_iterator.h"
 
 #define PAGESIZE 512
 #define CACHE_LINE_SIZE 64
@@ -48,7 +49,7 @@ public:
   void Insert(entry_key_t key, char* right);
   void Remove(entry_key_t key);
   char* Search(entry_key_t key);
-  Iterator* GetIterator();
+  BtreeIterator* GetIterator();
 // Function to Search keys from "min" to "max"
   void Range(entry_key_t min, entry_key_t max, unsigned long* buf);
 
