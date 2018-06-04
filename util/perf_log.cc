@@ -6,37 +6,10 @@
 
 namespace leveldb {
 
-static FILE* version_log;
 static FILE* block_log;
-static FILE* reader_log;
-static FILE* reader_f_log;
-static FILE* reader_m_log;
 
-void logMicro(Type type, uint64_t micro) {
-  switch (type) {
-    case VERSION:
-      fprintf(version_log, "%lu\n", micro);
-      break;
-    case BLOCK:
-      fprintf(block_log, "%lu\n", micro);
-      break;
-    case READER_F:
-      fprintf(reader_f_log, "%lu\n", micro);
-      break;
-    case READER_M:
-      fprintf(reader_m_log, "%lu\n", micro);
-      break;
-  }
-}
-
-
-extern void logFileReader(const char* format, ...) {
-  char p[200];
-  va_list ap;
-  va_start(ap, format);
-  vsnprintf(p, sizeof(p), format, ap);
-  va_end(ap);
-  fprintf(reader_log, "%s\n", p);
+void logMicro(uint64_t micro) {
+    fprintf(block_log, "%lu\n", micro);
 }
 
 uint64_t NowMicros() {
@@ -46,20 +19,11 @@ uint64_t NowMicros() {
 }
 
 void createPerfLog() {
-  version_log = fopen("version_log", "w");
   block_log = fopen("block_log", "w");
-  reader_log = fopen("reader_log", "w");
-  reader_f_log = fopen("reader_f_log", "w");
-  reader_m_log = fopen("reader_m_log", "w");
 }
 
-
 void closePerfLog() {
-  fclose(version_log);
   fclose(block_log);
-  fclose(reader_log);
-  fclose(reader_f_log);
-  fclose(reader_m_log);
 }
 
 

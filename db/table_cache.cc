@@ -143,23 +143,22 @@ Status TableCache::Get2(const ReadOptions& options,
 
 Status TableCache::Get3(const ReadOptions& options,
                         uint64_t file_number,
-                        uint64_t file_size,
                         const BlockHandle& block_handle,
                         const Slice& k,
                         void* arg,
                         void(*saver)(void*, const Slice&, const Slice&)) {
   Cache::Handle* handle = NULL;
-  Status s = FindTable(file_number, file_size, &handle);
+  Status s = FindTable(file_number, 0, &handle);
   if (s.ok()) {
     RandomAccessFile* file = reinterpret_cast<TableAndFile*>(cache_->Value(handle))->file;
     BlockContents contents;
 #ifdef PERF_LOG
     uint64_t start_micros = NowMicros();
 #endif
-    s = ReadBlock2(file, options, block_handle, &contents);
+    s = ReadBlock(file, options, block_handle, &contents);
 #ifdef PERF_LOG
     uint64_t micros = NowMicros() - start_micros;
-    logMicro(BLOCK, micros);
+    logMicro(micros);
 #endif
     Block block(contents);
     Iterator* block_iter = block.NewIterator(options_->comparator);

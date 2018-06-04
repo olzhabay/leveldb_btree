@@ -74,7 +74,6 @@ class TableCache {
 
   Status Get3(const ReadOptions& options,
               uint64_t file_number,
-              uint64_t file_size,
               const BlockHandle& block_handle,
               const Slice& k,
               void* arg,

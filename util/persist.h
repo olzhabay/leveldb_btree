@@ -6,8 +6,8 @@
 
 #define CPU_FREQ_MHZ (1994) // cat /proc/cpuinfo
 #define CAS(_p, _u, _v)  (__atomic_compare_exchange_n (_p, _u, _v, false, __ATOMIC_ACQUIRE, __ATOMIC_ACQUIRE))
-
 #define CACHE_LINE_SIZE (64)
+#define PAGESIZE 512
 
 static uint64_t WRITE_LATENCY_IN_NS = 500;
 

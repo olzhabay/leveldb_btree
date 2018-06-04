@@ -1215,22 +1215,12 @@ Status DBImpl::Get(const ReadOptions& options,
     } else if (imm != NULL && imm->Get(lkey, value, &s)) {
       // Done
     } else {
-#ifdef PERF_LOG
-      uint64_t start_micros = NowMicros();
-#endif
       s = current->Get2(options, lkey, value, &stats);
       have_stat_update = true;
-#ifdef PERF_LOG
-      uint64_t micros = NowMicros() - start_micros;
-      logMicro(VERSION, micros);
-#endif
     }
     mutex_.Lock();
   }
 
-  if (have_stat_update && current->UpdateStats(stats)) {
-    MaybeScheduleCompaction();
-  }
   mem->Unref();
   if (imm != NULL) imm->Unref();
   current->Unref();

@@ -25,9 +25,10 @@ void Index::Insert(const uint32_t& key, IndexMeta* meta) {
 }
 
 Iterator* Index::Range(const uint32_t& begin, const uint32_t& end, void* ptr) {
-  std::vector<LeafEntry*> entries = tree_.Range(begin, end);
-  Iterator* iter = new IndexIterator(entries, ptr);
-  return iter;
+  // will be changed to iterator based range query
+//  std::vector<LeafEntry*> entries = tree_.Range(begin, end);
+//  Iterator* iter = new IndexIterator(entries, ptr);
+  return nullptr;
 }
 
 void Index::AsyncInsert(const KeyAndMeta& key_and_meta) {

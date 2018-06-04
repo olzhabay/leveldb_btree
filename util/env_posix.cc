@@ -27,9 +27,6 @@
 #include "util/mutexlock.h"
 #include "util/posix_logger.h"
 #include "util/env_posix_test_helper.h"
-#ifdef PERF_LOG
-#include "util/perf_log.h"
-#endif
 
 // HAVE_FDATASYNC is defined in the auto-generated port_config.h, which is
 // included by port_stdcxx.h.
@@ -168,9 +165,6 @@ class PosixRandomAccessFile: public RandomAccessFile {
   virtual Status Read(uint64_t offset, size_t n, Slice* result,
                       char* scratch) const {
     int fd = fd_;
-#ifdef PERF_LOG
-    uint64_t start_micros = NowMicros();
-#endif
     if (temporary_fd_) {
       fd = open(filename_.c_str(), O_RDONLY);
       if (fd < 0) {
@@ -190,10 +184,6 @@ class PosixRandomAccessFile: public RandomAccessFile {
       // Close the temporary file descriptor opened earlier.
       close(fd);
     }
-#ifdef PERF_LOG
-    uint64_t micros = NowMicros() - start_micros;
-    logMicro(READER_F, micros);
-#endif
     return s;
   }
 };
@@ -222,19 +212,12 @@ class PosixMmapReadableFile: public RandomAccessFile {
   virtual Status Read(uint64_t offset, size_t n, Slice* result,
                       char* scratch) const {
     Status s;
-#ifdef PERF_LOG
-    uint64_t start_micros = NowMicros();
-#endif
     if (offset + n > length_) {
       *result = Slice();
       s = PosixError(filename_, EINVAL);
     } else {
       *result = Slice(reinterpret_cast<char*>(mmapped_region_) + offset, n);
     }
-#ifdef PERF_LOG
-    uint64_t micros = NowMicros() - start_micros;
-    logMicro(READER_M, micros);
-#endif
     return s;
   }
 };

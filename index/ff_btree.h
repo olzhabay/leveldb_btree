@@ -20,8 +20,6 @@
 #include "leveldb/iterator.h"
 #include "index/ff_btree_iterator.h"
 
-#define PAGESIZE 512
-#define CACHE_LINE_SIZE 64
 #define IS_FORWARD(c) (c % 2 == 0)
 
 using entry_key_t = int64_t;
@@ -127,8 +125,11 @@ public:
 
   void* operator new(size_t size) {
     void* ret;
-    posix_memalign(&ret, 64, size);
-    return ret;
+    return posix_memalign(&ret, 64, size) == 0 ? ret : nullptr;
+  }
+
+  void operator delete(void* buffer) {
+    free(buffer);
   }
 
   inline int count() {
