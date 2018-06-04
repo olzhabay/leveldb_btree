@@ -2,12 +2,15 @@
 #define STORAGE_LEVELDB_INDEX_FF_BTREE_ITERATOR_H_
 
 #include "leveldb/iterator.h"
+#include "index/ff_btree.h"
 
 namespace leveldb {
 
 class FFBtreeIterator : public Iterator {
 
 public:
+  FFBtreeIterator(char* b);
+
   bool Valid() const override;
 
   void SeekToFirst() override;
@@ -26,6 +29,10 @@ public:
 
   Status status() const override;
 
+private:
+  char *btree, *cur, *cur_page;
+  int index;
+  bool valid; // validity of current entry
 };
 
 } // namespace leveldb
