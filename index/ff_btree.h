@@ -47,7 +47,7 @@ public:
   void Insert(entry_key_t key, char* right);
   void Remove(entry_key_t key);
   char* Search(entry_key_t key);
-  BtreeIterator* GetIterator();
+  FFBtreeIterator* GetIterator();
 // Function to Search keys from "min" to "max"
   void Range(entry_key_t min, entry_key_t max, unsigned long* buf);
 
