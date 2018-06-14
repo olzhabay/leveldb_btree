@@ -8,10 +8,6 @@ int data_cnt = 5000000;
 int data_begin = 0;
 
 int main(int argc, char** argv) {
-  if (argc < 2) {
-    printf("file arg\n");
-    return 1;
-  }
   struct timespec start, end;
   uint64_t tsize = 0;
   leveldb::DB* db;
@@ -20,7 +16,7 @@ int main(int argc, char** argv) {
   options.create_if_missing = true;
   options.compression = leveldb::kNoCompression;
   options.index = new leveldb::Index();
-  char *c = argv[1];
+  const char *c = "/tmp/testdb";
   std::string dbpath(c);
   leveldb::Status status = leveldb::DB::Open(options, dbpath, &db);
   assert(status.ok());

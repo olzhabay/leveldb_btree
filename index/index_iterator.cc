@@ -14,7 +14,6 @@ IndexIterator::IndexIterator(std::vector<LeafEntry*> entries, void* ptr)
 }
 
 IndexIterator::~IndexIterator() {
-  index_ptr_->Unref();
   delete table_handle_;
   delete block_iterator_;
 }
@@ -74,9 +73,7 @@ void IndexIterator::IndexChange() {
   bool changed = false;
   it++;
   if ((char*)index_ptr_ != (*iterator_)->ptr) {
-    if (index_ptr_) index_ptr_->Unref();
     index_ptr_ = reinterpret_cast<IndexMeta*>((*iterator_)->ptr);
-    index_ptr_->Ref();
     changed = true;
   }
   if (file_number_ != index_ptr_->file_number) {
@@ -88,7 +85,7 @@ void IndexIterator::IndexChange() {
   if (changed) {
     delete block_iterator_;
     block_iterator_ = table_handle_->table_->BlockReader2(
-        table_handle_->table_, options_, index_ptr_->handle);
+        table_handle_->table_, options_, BlockHandle(index_ptr_->size, index_ptr_->offset));
     char k[100];
     snprintf(k, sizeof(k), "%016lu", (*iterator_)->key);
     std::string key = k;

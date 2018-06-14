@@ -73,8 +73,9 @@ class TableCache {
               void(*handle_result)(void*, const Slice&, const Slice&));
 
   Status Get3(const ReadOptions& options,
-              uint64_t file_number,
-              const BlockHandle& block_handle,
+              const uint16_t& file_number,
+              const uint32_t& offset,
+              const uint16_t& size,
               const Slice& k,
               void* arg,
               void(*handle_result)(void*, const Slice&, const Slice&));

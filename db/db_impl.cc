@@ -1202,9 +1202,6 @@ Status DBImpl::Get(const ReadOptions& options,
   if (imm != NULL) imm->Ref();
   current->Ref();
 
-  bool have_stat_update = false;
-  Version::GetStats stats;
-
   // Unlock while reading from files and memtables
   {
     mutex_.Unlock();
@@ -1215,8 +1212,7 @@ Status DBImpl::Get(const ReadOptions& options,
     } else if (imm != NULL && imm->Get(lkey, value, &s)) {
       // Done
     } else {
-      s = current->Get2(options, lkey, value, &stats);
-      have_stat_update = true;
+      s = current->Get2(options, lkey, value);
     }
     mutex_.Lock();
   }

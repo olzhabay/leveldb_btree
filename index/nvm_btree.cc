@@ -564,7 +564,6 @@ char* lNode::update(int64_t key, char* ptr) {
   for (int32_t i = 0; i < CARDINALITY; i++) {
     if (entry[i].key == key && entry[i].ptr != NULL) {
       char* p = entry[i].ptr;
-      leveldb::IndexMeta* m = reinterpret_cast<leveldb::IndexMeta*>(p);
       entry[i].ptr = ptr;
       clflush((char*) &entry[i].ptr, sizeof(char*));
       return p;

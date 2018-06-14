@@ -18,7 +18,6 @@
 #include "index/btree.h"
 #include "util/persist.h"
 #include "leveldb/iterator.h"
-#include "index/ff_btree_iterator.h"
 
 #define IS_FORWARD(c) (c % 2 == 0)
 
@@ -28,6 +27,7 @@ using namespace std;
 
 namespace leveldb {
 
+class FFBtreeIterator;
 class Page;
 
 class FFBtree : public Btree {
@@ -644,9 +644,9 @@ public:
 
           for (i = 1; records[i].ptr != NULL; ++i) {
             if ((k = records[i].key) == key) {
-              if (records[i - 1].ptr != (t = records[i].ptr)) {
+              if (records[i - 1].key != records[i].key) {
                 if (k == records[i].key) {
-                  ret = t;
+                  ret = records[i].ptr;
                   break;
                 }
               }
@@ -655,9 +655,9 @@ public:
         } else { // Search from right to left
           for (i = count() - 1; i > 0; --i) {
             if ((k = records[i].key) == key) {
-              if (records[i - 1].ptr != (t = records[i].ptr) && t) {
+              if (records[i - 1].key != records[i].key && records[i].ptr) {
                 if (k == records[i].key) {
-                  ret = t;
+                  ret = records[i].ptr;
                   break;
                 }
               }

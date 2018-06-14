@@ -432,8 +432,7 @@ Status Version::Get(const ReadOptions& options,
 
 Status Version::Get2(const ReadOptions& options,
                     const LookupKey& k,
-                    std::string* value,
-                    GetStats* stats) {
+                    std::string* value) {
   Status s;
   Slice ikey = k.internal_key();
   Slice user_key = k.user_key();
@@ -443,14 +442,12 @@ Status Version::Get2(const ReadOptions& options,
   const IndexMeta* index_meta = index->Get(user_key);
 
   if (index_meta != nullptr) {
-    BlockHandle block_handle = index_meta->handle;
-
     Saver saver;
     saver.state = kNotFound;
     saver.ucmp = ucmp;
     saver.user_key = user_key;
     saver.value = value;
-    s = vset_->table_cache_->Get3(options, index_meta->file_number, block_handle,
+    s = vset_->table_cache_->Get3(options, index_meta->file_number, index_meta->offset, index_meta->size,
                                   ikey, &saver, SaveValue);
 
     if (!s.ok()) {
@@ -470,45 +467,6 @@ Status Version::Get2(const ReadOptions& options,
         return s;
     }
   }
-  return Status::NotFound(Slice());  // Use an empty error message for speed
-}
-
-Status Version::Get3(const ReadOptions& options,
-                     const LookupKey& k,
-                     std::string* value,
-                     IndexMeta* index_meta) {
-
-  Status s;
-  Slice ikey = k.internal_key();
-  Slice user_key = k.user_key();
-  const Comparator* ucmp = vset_->icmp_.user_comparator();
-
-  Saver saver;
-  saver.state = kNotFound;
-  saver.ucmp = ucmp;
-  saver.user_key = user_key;
-  saver.value = value;
-
-  BlockHandle block_handle = index_meta->handle;
-  s = vset_->table_cache_->Get2(options, index_meta->file_number, block_handle,
-                                ikey, &saver, SaveValue);
-  if (!s.ok()) {
-    return s;
-  }
-  switch (saver.state) {
-    case kNotFound:
-      s = Status::NotFound(Slice());
-      return s;
-    case kFound:
-      return s;
-    case kDeleted:
-      s = Status::NotFound(Slice());  // Use empty error message for speed
-      return s;
-    case kCorrupt:
-      s = Status::Corruption("corrupted key for ", user_key);
-      return s;
-  }
-
   return Status::NotFound(Slice());  // Use an empty error message for speed
 }
 

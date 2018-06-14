@@ -75,11 +75,7 @@ class Version {
   Status Get(const ReadOptions&, const LookupKey& key, std::string* val,
              GetStats* stats);
 
-  Status Get2(const ReadOptions&, const LookupKey& key, std::string* val,
-              GetStats* stats);
-
-  Status Get3(const ReadOptions&, const LookupKey& key, std::string* val,
-              IndexMeta* index_meta);
+  Status Get2(const ReadOptions&, const LookupKey& key, std::string* val);
 
   // Adds "stats" into the current state.  Returns true if a new
   // compaction may need to be triggered, false otherwise.

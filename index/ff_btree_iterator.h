@@ -6,7 +6,6 @@
 namespace leveldb {
 
 class FFBtreeIterator {
-
 public:
   FFBtreeIterator(FFBtree* b);
 

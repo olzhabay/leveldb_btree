@@ -208,7 +208,7 @@ void TableBuilder::WriteRawBlock(const Slice& block_contents,
   handle->set_size(block_contents.size());
   // update block size in index meta
   if (is_data_block) {
-    r->indexmeta->handle.set_size(block_contents.size());
+    r->indexmeta->size = block_contents.size();
     clflush((char*) r->indexmeta, sizeof(IndexMeta));
   }
   r->status = r->file->Append(block_contents);

@@ -142,8 +142,9 @@ Status TableCache::Get2(const ReadOptions& options,
 }
 
 Status TableCache::Get3(const ReadOptions& options,
-                        uint64_t file_number,
-                        const BlockHandle& block_handle,
+                        const uint16_t& file_number,
+                        const uint32_t& offset,
+                        const uint16_t& size,
                         const Slice& k,
                         void* arg,
                         void(*saver)(void*, const Slice&, const Slice&)) {
@@ -155,7 +156,7 @@ Status TableCache::Get3(const ReadOptions& options,
 #ifdef PERF_LOG
     uint64_t start_micros = NowMicros();
 #endif
-    s = ReadBlock(file, options, block_handle, &contents);
+    s = ReadBlock(file, options, BlockHandle(size, offset), &contents);
 #ifdef PERF_LOG
     uint64_t micros = NowMicros() - start_micros;
     logMicro(micros);

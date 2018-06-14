@@ -15,16 +15,14 @@
 namespace leveldb {
 
 class IndexMeta {
- private:
-  uint64_t refs;
  public:
-  uint64_t file_number;
-  BlockHandle handle;
+  uint32_t offset;
+  uint16_t size;
+  uint16_t file_number;
+  uint8_t refs;
 
-  IndexMeta(uint32_t offset, uint32_t size, uint32_t file_number) :
-      handle(size, offset), file_number(file_number), refs(0) { }
-
-  ~IndexMeta() { }
+  IndexMeta(uint32_t offset, uint16_t size, uint16_t file_number) :
+      offset(offset), size(size), file_number(file_number), refs(0) { }
 
   void Ref() {
     ++refs;
@@ -34,7 +32,6 @@ class IndexMeta {
     if (--refs == 0)
       delete this;
   }
-
 };
 
 struct KeyAndMeta{
