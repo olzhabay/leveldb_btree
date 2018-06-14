@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.0)
 
 project(leveldb_btree CXX)
 set(CMAKE_DEBUG_POSTFIX "d")
+set(CMAKE_CXX_STANDARD 17)
 
 set(SNAPPY_LIBRARY "")
 

@@ -196,7 +196,7 @@ public:
 
   bool remove(FFBtree* bt, entry_key_t key, bool only_rebalance = false, bool with_lock = true) {
     if (!only_rebalance) {
-      register int num_entries_before = count();
+      int num_entries_before = count();
 
       // This node is root
       if (this == (Page*) bt->root) {
@@ -241,8 +241,8 @@ public:
       return true;
     }
 
-    register int num_entries = count();
-    register int left_num_entries = left_sibling->count();
+    int num_entries = count();
+    int left_num_entries = left_sibling->count();
 
     // Merge or Redistribution
     int total_num_entries = num_entries + left_num_entries;
@@ -252,7 +252,7 @@ public:
     entry_key_t parent_key;
 
     if (total_num_entries > cardinality - 1) { // Redistribution
-      register int m = (int) ceil(total_num_entries / 2);
+      int m = (int) ceil(total_num_entries / 2);
 
       if (num_entries < left_num_entries) { // left -> right
         if (hdr.leftmost_ptr == nullptr) {
@@ -399,13 +399,16 @@ public:
       }
 
       // check for duplicate key
-      for (i = *num_entries - 1; i >=0; i--) {
-        if (key == records[i].key) {
-          records[i].ptr = ptr;
-          if (flush) {
-            clflush((char*) &records[0], sizeof(Entry));
+      if (hdr.leftmost_ptr == nullptr) {
+        for (i = *num_entries - 1; i >= 0; i--) {
+          if (key == records[i].key) {
+            int f = i;
+            records[i].ptr = ptr;
+            if (flush) {
+              clflush((char*) &records[0].ptr, sizeof(char*));
+            }
+            return;
           }
-          return;
         }
       }
 
@@ -455,9 +458,8 @@ public:
   }
 
   // Insert a new key - FAST and FAIR
-  Page* store
-      (FFBtree* bt, char* left, entry_key_t key, char* right,
-       bool flush, Page* invalid_sibling = NULL) {
+  Page* store(FFBtree* bt, char* left, entry_key_t key, char* right,
+              bool flush, Page* invalid_sibling = NULL) {
     // If this node has a sibling node,
     if (hdr.sibling_ptr && (hdr.sibling_ptr != invalid_sibling)) {
       // Compare this key with the first key of the sibling
@@ -467,7 +469,7 @@ public:
       }
     }
 
-    register int num_entries = count();
+    int num_entries = count();
 
     // FAST
     if (num_entries < cardinality - 1) {
@@ -477,7 +479,7 @@ public:
       // overflow
       // create a new node
       Page* sibling = new Page(hdr.level);
-      register int m = (int) ceil(num_entries / 2);
+      int m = (int) ceil(num_entries / 2);
       entry_key_t split_key = records[m].key;
 
       // migrate half of keys into the sibling
@@ -615,7 +617,7 @@ public:
   }
 
   char* linear_search(entry_key_t key) {
-    int i = 1;
+    int i;
     uint8_t previous_switch_counter;
     char* ret = NULL;
     char* t;

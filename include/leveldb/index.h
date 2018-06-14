@@ -4,9 +4,11 @@
 #include <cstdint>
 #include <map>
 #include <deque>
+#include <shared_mutex>
 #include "port/port.h"
 #include "table/format.h"
 #include "index/nvm_btree.h"
+#include "index/ff_btree.h"
 #include "leveldb/env.h"
 #include "leveldb/iterator.h"
 
@@ -74,7 +76,7 @@ class Index {
 
  private:
 
-  NVMBtree tree_; // Temporary
+  FFBtree tree_; // Temporary
   bool bgstarted_;
   pthread_t thread_;
   port::Mutex mutex_;

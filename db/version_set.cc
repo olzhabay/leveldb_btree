@@ -442,7 +442,7 @@ Status Version::Get2(const ReadOptions& options,
   Index* index = vset_->options_->index;
   const IndexMeta* index_meta = index->Get(user_key);
 
-  if (index_meta != NULL) {
+  if (index_meta != nullptr) {
     BlockHandle block_handle = index_meta->handle;
 
     Saver saver;
@@ -452,7 +452,6 @@ Status Version::Get2(const ReadOptions& options,
     saver.value = value;
     s = vset_->table_cache_->Get3(options, index_meta->file_number, block_handle,
                                   ikey, &saver, SaveValue);
-
 
     if (!s.ok()) {
       return s;
