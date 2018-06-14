@@ -52,6 +52,7 @@ public:
   void Range(entry_key_t min, entry_key_t max, unsigned long* buf);
 
   friend class Page;
+  friend class FFBtreeIterator;
 };
 
 class Header {
@@ -66,7 +67,7 @@ private:
 
   friend class Page;
   friend class FFBtree;
-
+  friend class FFBtreeIterator;
 public:
   Header() {
     leftmost_ptr = NULL;
@@ -92,6 +93,7 @@ public :
 
   friend class Page;
   friend class FFBtree;
+  friend class FFBtreeIterator;
 };
 
 const int cardinality = (PAGESIZE - sizeof(Header)) / sizeof(Entry);
@@ -104,6 +106,7 @@ private:
 
 public:
   friend class FFBtree;
+  friend class FFBtreeIterator;
 
   Page(uint32_t level = 0) {
     hdr.level = level;
@@ -739,6 +742,131 @@ public:
     }
     return NULL;
   }
+
+  char* linear_search_entry(entry_key_t key) {
+    int i = 1;
+    uint8_t previous_switch_counter;
+    char* ret = NULL;
+    char* t;
+    entry_key_t k;
+
+    if (hdr.leftmost_ptr == NULL) { // Search a leaf node
+      do {
+        previous_switch_counter = hdr.switch_counter;
+        ret = NULL;
+
+        // Search from left ro right
+        if (IS_FORWARD(previous_switch_counter)) {
+          if ((k = records[0].key) == key) {
+            if ((t = records[0].ptr) != NULL) {
+              if (k == records[0].key) {
+                ret = (char*)&records[0];
+                continue;
+              }
+            }
+          }
+
+          for (i = 1; records[i].ptr != NULL; ++i) {
+            if ((k = records[i].key) == key) {
+              if (records[i - 1].ptr != (t = records[i].ptr)) {
+                if (k == records[i].key) {
+                  ret = (char*)&records[i];
+                  break;
+                }
+              }
+            }
+          }
+        } else { // Search from right to left
+          for (i = count() - 1; i > 0; --i) {
+            if ((k = records[i].key) == key) {
+              if (records[i - 1].ptr != (t = records[i].ptr) && t) {
+                if (k == records[i].key) {
+                  ret = (char*)&records[i];
+                  break;
+                }
+              }
+            }
+          }
+
+          if (!ret) {
+            if ((k = records[0].key) == key) {
+              if (NULL != (t = records[0].ptr) && t) {
+                if (k == records[0].key) {
+                  ret = (char*)&records[0];
+                  continue;
+                }
+              }
+            }
+          }
+        }
+      } while (hdr.switch_counter != previous_switch_counter);
+
+      if (ret) {
+        return ret;
+      }
+
+      if ((t = (char*) hdr.sibling_ptr) && key >= ((Page*) t)->records[0].key)
+        return t;
+
+      return NULL;
+    } else { // internal node
+      do {
+        previous_switch_counter = hdr.switch_counter;
+        ret = NULL;
+
+        if (IS_FORWARD(previous_switch_counter)) {
+          if (key < (k = records[0].key)) {
+            if ((t = (char*) hdr.leftmost_ptr) != records[0].ptr) {
+              ret = t;
+              continue;
+            }
+          }
+
+          for (i = 1; records[i].ptr != NULL; ++i) {
+            if (key < (k = records[i].key)) {
+              if ((t = records[i - 1].ptr) != records[i].ptr) {
+                ret = (char*)&records[i-1];
+                break;
+              }
+            }
+          }
+
+          if (!ret) {
+            ret = (char*)&records[i - 1];
+            continue;
+          }
+        } else { // Search from right to left
+          for (i = count() - 1; i >= 0; --i) {
+            if (key >= (k = records[i].key)) {
+              if (i == 0) {
+                if ((char*) hdr.leftmost_ptr != (t = records[i].ptr)) {
+                  ret = (char*)&records[i];
+                  break;
+                }
+              } else {
+                if (records[i - 1].ptr != (t = records[i].ptr)) {
+                  ret = (char*)&records[i];
+                  break;
+                }
+              }
+            }
+          }
+        }
+      } while (hdr.switch_counter != previous_switch_counter);
+
+      if ((t = (char*) hdr.sibling_ptr) != NULL) {
+        if (key >= ((Page*) t)->records[0].key)
+          return t;
+      }
+
+      if (ret) {
+        return ret;
+      } else
+        return (char*) hdr.leftmost_ptr;
+    }
+    return NULL;
+  }
+
 
 };
 
