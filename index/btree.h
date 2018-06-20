@@ -7,8 +7,8 @@
 namespace leveldb {
 
 class Btree {
-  virtual void Insert(int64_t, char*) = 0;
-  virtual char* Search(int64_t) = 0;
+  virtual void Insert(int64_t, void*) = 0;
+  virtual void* Search(int64_t) = 0;
   virtual void Remove(int64_t) = 0;
 };
 

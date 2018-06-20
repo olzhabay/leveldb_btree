@@ -4,54 +4,57 @@
 
 namespace leveldb {
 
-IndexIterator::IndexIterator(std::vector<LeafEntry*> entries, void* ptr)
-    : entries_(entries),
-      vset_(reinterpret_cast<VersionSet*>(ptr)),
-      index_ptr_(NULL),
-      table_handle_(NULL),
-      block_iterator_(NULL) {
+static void DeleteIterator(const Slice& key, void* value) {
+  Iterator* iterator = reinterpret_cast<Iterator*>(value);
+  delete iterator;
+}
+
+IndexIterator::IndexIterator(ReadOptions options, FFBtreeIterator* btree_iter, TableCache* table_cache)
+    : options_(options),
+      btree_iterator_(btree_iter),
+      table_cache_(table_cache),
+      block_iterator_(NULL),
+      cache_(NewLRUCache(8 << 20)){
   SeekToFirst();
 }
 
 IndexIterator::~IndexIterator() {
-  delete table_handle_;
-  delete block_iterator_;
+  delete cache_;
+  delete btree_iterator_;
 }
 
 bool IndexIterator::Valid() const {
-  return iterator_ != entries_.end();
+  return btree_iterator_->Valid();
 }
 
 void IndexIterator::SeekToFirst() {
-  iterator_ = entries_.begin();
-  IndexChange();
+  btree_iterator_->SeekToFirst();
 }
 
 void IndexIterator::SeekToLast() {
-  iterator_ = entries_.end();
-  IndexChange();
+  btree_iterator_->SeekToLast();
 }
 
 void IndexIterator::Seek(const Slice& target) {
-//  int64_t t = fast_atoi(target.data(), target.size());
-//  iterator_ = std::lower_bound(entries_.begin(), entries_.end(), t,
-//                   [](LeafEntry* a, LeafEntry* b) {
-//                     return a->key < b->key;
-//                   });
+  btree_iterator_->Seek(fast_atoi(target));
+  Advance();
+  block_iterator_->Seek(target);
+  status_ = block_iterator_->status();
 }
 
 void IndexIterator::Next() {
-  iterator_++;
-  if (iterator_ != entries_.end()) {
-    IndexChange();
+  btree_iterator_->Next();
+  Advance();
+  while (fast_atoi(block_iterator_->key()) < btree_iterator_->key()) {
+    block_iterator_->Next();
+  }
+  if (fast_atoi(block_iterator_->key()) != btree_iterator_->key()) {
+    status_ = Status::NotFound(std::to_string(btree_iterator_->key()));
   }
 }
 
 void IndexIterator::Prev() {
-  iterator_--;
-  if (iterator_ != entries_.begin()) {
-    IndexChange();
-  }
+  btree_iterator_->Prev();
 }
 
 Slice IndexIterator::key() const {
@@ -63,36 +66,28 @@ Slice IndexIterator::value() const {
 }
 
 Status IndexIterator::status() const {
-  if (entries_.empty()) {
-    return Status::Corruption("Indexing is corrupted");
-  }
-  return Status();
+  if (!block_iterator_->status().ok()) return block_iterator_->status();
+  return status_;
 }
 
-void IndexIterator::IndexChange() {
-  bool changed = false;
-  it++;
-  if ((char*)index_ptr_ != (*iterator_)->ptr) {
-    index_ptr_ = reinterpret_cast<IndexMeta*>((*iterator_)->ptr);
-    changed = true;
+void IndexIterator::CacheLookup() {
+  char buf[sizeof(void*)];
+  EncodeFixed64(buf, (uint64_t) btree_iterator_->value());
+  Slice cache_key(buf, sizeof(buf));
+  Cache::Handle* handle = cache_->Lookup(cache_key);
+  if (handle == nullptr) {
+    status_ = table_cache_->GetBlockIterator(options_, index_meta_.file_number,
+                                             index_meta_.offset, index_meta_.size, block_iterator_);
+    if (!status_.ok()) return; // something went wrong
+    handle = cache_->Insert(cache_key, block_iterator_, index_meta_.size ,&DeleteIterator);
   }
-  if (file_number_ != index_ptr_->file_number) {
-    delete table_handle_;
-    table_handle_ = new TableHandle;
-    file_number_ = index_ptr_->file_number;
-    vset_->cache()->GetTable(file_number_, table_handle_);
-  }
-  if (changed) {
-    delete block_iterator_;
-    block_iterator_ = table_handle_->table_->BlockReader2(
-        table_handle_->table_, options_, BlockHandle(index_ptr_->size, index_ptr_->offset));
-    char k[100];
-    snprintf(k, sizeof(k), "%016lu", (*iterator_)->key);
-    std::string key = k;
-    LookupKey lkey(k, vset_->LastSequence());
-    block_iterator_->Seek(lkey.internal_key());
-  } else {
-    block_iterator_->Next();
+  block_iterator_ = reinterpret_cast<Iterator*>(cache_->Value(handle));
+}
+
+void IndexIterator::Advance() {
+  if (btree_iterator_->value() != convert(index_meta_)) {
+    index_meta_ = convert(btree_iterator_->value());
+    CacheLookup();
   }
 }
 

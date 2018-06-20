@@ -1,6 +1,7 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <util/perf_log.h>
 #include "leveldb/db.h"
 #include "leveldb/index.h"
 
@@ -8,6 +9,9 @@ int data_cnt = 5000000;
 int data_begin = 0;
 
 int main(int argc, char** argv) {
+#ifdef PERF_LOG
+  leveldb::createPerfLog();
+#endif
   struct timespec start, end;
   uint64_t tsize = 0;
   leveldb::DB* db;

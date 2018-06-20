@@ -15,7 +15,7 @@ public:
 
   void SeekToLast();
 
-  void Seek(const Slice& target);
+  void Seek(const int64_t& key);
 
   void Next();
 

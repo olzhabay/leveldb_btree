@@ -439,15 +439,15 @@ Status Version::Get2(const ReadOptions& options,
   const Comparator* ucmp = vset_->icmp_.user_comparator();
 
   Index* index = vset_->options_->index;
-  const IndexMeta* index_meta = index->Get(user_key);
+  IndexMeta index_meta = index->Get(user_key);
 
-  if (index_meta != nullptr) {
+  if (convert(index_meta) != 0) {
     Saver saver;
     saver.state = kNotFound;
     saver.ucmp = ucmp;
     saver.user_key = user_key;
     saver.value = value;
-    s = vset_->table_cache_->Get3(options, index_meta->file_number, index_meta->offset, index_meta->size,
+    s = vset_->table_cache_->Get3(options, index_meta.file_number, index_meta.offset, index_meta.size,
                                   ikey, &saver, SaveValue);
 
     if (!s.ok()) {

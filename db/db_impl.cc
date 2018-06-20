@@ -855,18 +855,11 @@ Status DBImpl::FinishCompactionOutputFile(CompactionState* compact,
     compact->builder->Abandon();
   }
   const uint64_t current_bytes = compact->builder->FileSize();
+  assert(current_bytes > 0);
   compact->current_output()->file_size = current_bytes;
   compact->total_bytes += current_bytes;
   delete compact->builder;
   compact->builder = NULL;
-
-  // Finish and check for file errors
-  if (s.ok()) {
-    s = compact->outfile->Sync();
-  }
-  if (s.ok()) {
-    s = compact->outfile->Close();
-  }
   delete compact->outfile;
   compact->outfile = NULL;
 
@@ -1120,56 +1113,6 @@ Iterator* DBImpl::NewInternalIterator(const ReadOptions& options,
   *seed = ++seed_;
   mutex_.Unlock();
   return internal_iter;
-}
-
-Iterator* DBImpl::RangeQuery(const ReadOptions& options,
-                             const Slice& begin,
-                             const Slice& end) {
-  IterState* cleanup = new IterState;
-  std::vector<Iterator*> list;
-  mutex_.Lock();
-  //
-  versions_->current()->Ref();
-  SequenceNumber snapshot;
-  if (options.snapshot != NULL) {
-    snapshot = reinterpret_cast<const SnapshotImpl*>(options.snapshot)->number_;
-  } else {
-    snapshot = versions_->LastSequence();
-  }
-  LookupKey k(begin, snapshot);
-  // add mem iterator
-  Iterator* mem_iter = mem_->NewIterator();
-  mem_iter->Seek(k.memtable_key());
-  list.push_back(mem_iter);
-  mem_->Ref();
-
-  // add imm iterator
-  if (imm_ != NULL) {
-    Iterator* imm_iter = imm_->NewIterator();
-    imm_iter->Seek(k.memtable_key());
-    list.push_back(imm_iter);
-    imm_->Ref();
-  }
-
-
-
-  // add btree range query
-  list.push_back(index_->Range(fast_atoi(begin.data(), begin.size()),
-                               fast_atoi(end.data(), end.size()), versions_));
-
-  // put all together
-  Iterator* range_iterator = NewRangeIterator(&internal_comparator_,
-                                                std::move(list),
-                                                list.size());
-  // init cleaner
-  cleanup->mu = &mutex_;
-  cleanup->mem = mem_;
-  cleanup->imm = imm_;
-  cleanup->version = versions_->current();
-  range_iterator->RegisterCleanup(CleanupIteratorState, cleanup, NULL);
-
-  mutex_.Unlock();
-  return range_iterator;
 }
 
 Iterator* DBImpl::TEST_NewInternalIterator() {

@@ -827,25 +827,25 @@ class Benchmark {
   }
 
   void RangeQuery(ThreadState* thread) {
-    ReadOptions options;
-    std::string value;
-    int64_t bytes = 0;
-    for (int i = 0; i < ranges_; i++) {
-      const int k = abs((int)(thread->rand.Next() % FLAGS_num) - range_size_);
-      const int l = k + range_size_;
-      char begin[100];
-      snprintf(begin, sizeof(begin), "%016d", k);
-      char end[100];
-      snprintf(end, sizeof(end), "%016d", l);
-      Iterator* iter = db_->RangeQuery(options, begin, end);
-      while (iter->Valid()) {
-        bytes += iter->key().size() + iter->value().size();
-        thread->stats.FinishedSingleOp();
-        iter->Next();
-      }
-      delete iter;
-    }
-    thread->stats.AddBytes(bytes);
+//    ReadOptions options;
+//    std::string value;
+//    int64_t bytes = 0;
+//    for (int i = 0; i < ranges_; i++) {
+//      const int k = abs((int)(thread->rand.Next() % FLAGS_num) - range_size_);
+//      const int l = k + range_size_;
+//      char begin[100];
+//      snprintf(begin, sizeof(begin), "%016d", k);
+//      char end[100];
+//      snprintf(end, sizeof(end), "%016d", l);
+//      Iterator* iter = db_->RangeQuery(options, begin, end);
+//      while (iter->Valid()) {
+//        bytes += iter->key().size() + iter->value().size();
+//        thread->stats.FinishedSingleOp();
+//        iter->Next();
+//      }
+//      delete iter;
+//    }
+//    thread->stats.AddBytes(bytes);
   }
 
   void ReadMissing(ThreadState* thread) {

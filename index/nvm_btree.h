@@ -22,7 +22,7 @@ class Node;
 
 struct LeafEntry {
   int64_t key;
-  char* ptr;
+  void* ptr;
 };
 
 struct InternalEntry {
@@ -119,19 +119,19 @@ public:
 
   ~lNode();
 
-  void insert(int64_t, char*);
+  void insert(int64_t, void*);
 
-  void sInsert(int32_t, int64_t, char*);
+  void sInsert(int32_t, int64_t, void*);
 
-  Split* split(int64_t, char*);
+  Split* split(int64_t, void*);
 
   Merge* merge(void);
 
   void remove(int64_t);
 
-  char* search(int64_t);
+  void* search(int64_t);
 
-  char* update(int64_t, char*);
+  void* update(int64_t, void*);
 
   void* operator new(size_t size) {
     void* ret;
@@ -322,9 +322,9 @@ private:
 public:
   NVMBtree();
 
-  char* Search(int64_t);
+  void* Search(int64_t);
 
-  void Insert(int64_t, char*);
+  void Insert(int64_t, void*);
 
   void Remove(int64_t);
 

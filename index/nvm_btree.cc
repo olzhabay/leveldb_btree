@@ -14,7 +14,7 @@ NVMBtree::NVMBtree() {
   failedSearch = 0;
 }
 
-void NVMBtree::Insert(int64_t key, char* ptr) {
+void NVMBtree::Insert(int64_t key, void* ptr) {
   Node* node = root, * lSib = NULL;
   Split* split = NULL;
   iNodeSearch:
@@ -32,9 +32,7 @@ void NVMBtree::Insert(int64_t key, char* ptr) {
   lNode* leaf = (lNode*) node;
   // update if key exists
   if (leaf->search(key) != NULL) {
-    leveldb::IndexMeta* meta = reinterpret_cast<leveldb::IndexMeta*>(leaf->update(key, ptr));
-    if (meta != NULL)
-      meta->Unref();
+    leaf->update(key, ptr);
     return;
   }
   if (!leaf->overflow()) {
@@ -150,14 +148,14 @@ void NVMBtree::Insert(int64_t key, char* ptr) {
   }
 }
 
-char* NVMBtree::Search(int64_t key) {
+void* NVMBtree::Search(int64_t key) {
   Node* p = root;
   while (p->type == Node::Internal) {
     p = ((iNode*) p)->search(key);
     if (p == NULL) p = root;
   }
 
-  char* result = ((lNode*) p)->search(key);
+  void* result = ((lNode*) p)->search(key);
   if (result == NULL) {
     failedSearch++;
   }
@@ -439,7 +437,7 @@ bool lNode::overflow(void) {
   return true;
 }
 
-void lNode::insert(int64_t key, char* ptr) {
+void lNode::insert(int64_t key, void* ptr) {
   int32_t loc;
   for (loc = 0; loc < CARDINALITY; loc++) {
     if (entry[loc].ptr == NULL) break;
@@ -450,12 +448,12 @@ void lNode::insert(int64_t key, char* ptr) {
   clflush((char*) &entry[loc], sizeof(LeafEntry));
 }
 
-void lNode::sInsert(int32_t idx, int64_t key, char* ptr) {
+void lNode::sInsert(int32_t idx, int64_t key, void* ptr) {
   entry[idx].key = key;
   entry[idx].ptr = ptr;
 }
 
-Split* lNode::split(int64_t key, char* ptr) {
+Split* lNode::split(int64_t key, void* ptr) {
   Split* split = new Split;
   array<LeafEntry, CARDINALITY> temp(entry);
   std::sort(temp.begin(), temp.end(),
@@ -560,10 +558,10 @@ void lNode::remove(int64_t key) {
   }
 }
 
-char* lNode::update(int64_t key, char* ptr) {
+void* lNode::update(int64_t key, void* ptr) {
   for (int32_t i = 0; i < CARDINALITY; i++) {
     if (entry[i].key == key && entry[i].ptr != NULL) {
-      char* p = entry[i].ptr;
+      void* p = entry[i].ptr;
       entry[i].ptr = ptr;
       clflush((char*) &entry[i].ptr, sizeof(char*));
       return p;
@@ -575,7 +573,7 @@ char* lNode::update(int64_t key, char* ptr) {
   return nullptr;
 }
 
-char* lNode::search(int64_t key) {
+void* lNode::search(int64_t key) {
   for (int32_t i = 0; i < CARDINALITY; i++) {
     if (entry[i].key == key && entry[i].ptr != NULL) {
       return entry[i].ptr;

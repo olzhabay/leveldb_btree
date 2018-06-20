@@ -150,6 +150,7 @@ Status TableCache::Get3(const ReadOptions& options,
                         void(*saver)(void*, const Slice&, const Slice&)) {
   Cache::Handle* handle = NULL;
   Status s = FindTable(file_number, 0, &handle);
+  assert(s.ok());
   if (s.ok()) {
     RandomAccessFile* file = reinterpret_cast<TableAndFile*>(cache_->Value(handle))->file;
     BlockContents contents;
@@ -171,6 +172,26 @@ Status TableCache::Get3(const ReadOptions& options,
   }
   return s;
 }
+
+Status TableCache::GetBlockIterator(const ReadOptions& options,
+                        const u_int16_t file_number,
+                        const uint32_t& offset,
+                        const uint16_t& size,
+                        Iterator* iterator) {
+  Cache::Handle* handle = nullptr;
+  iterator = nullptr;
+  Status s = FindTable(file_number, 0, &handle);
+  if (s.ok()) {
+    RandomAccessFile* file = reinterpret_cast<TableAndFile*>(cache_->Value(handle))->file;
+    BlockContents contents;
+    s = ReadBlock(file, options, BlockHandle(size, offset), &contents);
+    Block block(contents);
+    iterator = block.NewIterator(options_->comparator);
+    cache_->Release(handle);
+  }
+  return s;
+}
+
 
 Status TableCache::GetTable(uint64_t file_number, TableHandle* table_handle) {
   Cache::Handle* handle = NULL;

@@ -34,7 +34,7 @@ struct TableBuilder::Rep {
   bool closed;          // Either Finish() or Abandon() has been called.
   FilterBlockBuilder* filter_block;
   Index* index;
-  IndexMeta* indexmeta;
+  std::shared_ptr<IndexMeta> index_meta;
 
 
   // We do not emit the index entry for a block until we have seen the
@@ -108,7 +108,7 @@ void TableBuilder::Add(const Slice& key, const Slice& value) {
   }
   // create index meta for new block
   if (r->data_block.empty()) {
-    r->indexmeta = new IndexMeta(r->offset, 0, r->fnumber);
+    r->index_meta = std::make_shared<IndexMeta>(r->offset, 0, r->fnumber);
   }
 
   if (r->pending_index_entry) {
@@ -130,8 +130,7 @@ void TableBuilder::Add(const Slice& key, const Slice& value) {
   // add to index queue block meta 
   KeyAndMeta key_meta;
   key_meta.key = fast_atoi(key.data(), key.size()-8);
-  key_meta.meta = r->indexmeta;
-  r->indexmeta->Ref();
+  key_meta.meta = r->index_meta;
   r->index_queue.push_back(key_meta);
 
   const size_t estimated_block_size = r->data_block.CurrentSizeEstimate();
@@ -154,13 +153,6 @@ void TableBuilder::Flush() {
   if (r->filter_block != NULL) {
     r->filter_block->StartBlock(r->offset);
   }
-//  if (ok()) {
-//    r->index->AddQueue(r->index_queue);
-//    assert(r->index_queue.size() == 0);
-//    if (!r->index_queue.empty())
-//      Log(r->options.info_log, "queue not empty, size %d", r->index_queue.size());
-//    r->index_queue.clear();
-//  }
 }
 
 void TableBuilder::WriteBlock(BlockBuilder* block, BlockHandle* handle, bool is_data_block) {
@@ -208,8 +200,7 @@ void TableBuilder::WriteRawBlock(const Slice& block_contents,
   handle->set_size(block_contents.size());
   // update block size in index meta
   if (is_data_block) {
-    r->indexmeta->size = block_contents.size();
-    clflush((char*) r->indexmeta, sizeof(IndexMeta));
+    r->index_meta->size = block_contents.size();
   }
   r->status = r->file->Append(block_contents);
   if (r->status.ok()) {
@@ -234,8 +225,6 @@ Status TableBuilder::Finish() {
   Flush();
   assert(!r->closed);
   r->closed = true;
-  r->index->AddQueue(r->index_queue);
-  assert(r->index_queue.size() == 0);
 
   BlockHandle filter_block_handle, metaindex_block_handle, index_block_handle;
 
@@ -285,6 +274,14 @@ Status TableBuilder::Finish() {
       r->offset += footer_encoding.size();
     }
   }
+  if (r->status.ok()) {
+    r->status = r->file->Sync();
+  }
+  if (r->status.ok()) {
+    r->status = r->file->Close();
+  }
+  r->index->AddQueue(r->index_queue);
+  assert(r->index_queue.size() == 0);
   return r->status;
 }
 

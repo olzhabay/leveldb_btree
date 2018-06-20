@@ -14,40 +14,33 @@
 
 namespace leveldb {
 
-class IndexMeta {
- public:
+struct IndexMeta {
+public:
   uint32_t offset;
   uint16_t size;
   uint16_t file_number;
-  uint8_t refs;
+
+  IndexMeta() : offset(0), size(0), file_number(0) { }
 
   IndexMeta(uint32_t offset, uint16_t size, uint16_t file_number) :
-      offset(offset), size(size), file_number(file_number), refs(0) { }
-
-  void Ref() {
-    ++refs;
-  }
-
-  void Unref() {
-    if (--refs == 0)
-      delete this;
-  }
+    offset(offset), size(size), file_number(file_number) { }
 };
+
+void* convert(IndexMeta meta);
+IndexMeta convert(void* ptr);
 
 struct KeyAndMeta{
   uint32_t key;
-  IndexMeta* meta;
+  std::shared_ptr<IndexMeta> meta;
 };
 
 class Index {
  public:
   Index();
 
-  const IndexMeta* Get(const Slice& key);
+  IndexMeta Get(const Slice& key);
 
-  void Insert(const uint32_t& key, IndexMeta* meta);
-
-  Iterator* Range(const uint32_t& begin, const uint32_t& end, void* ptr);
+  void Insert(const uint32_t& key, IndexMeta meta);
 
   void AsyncInsert(const KeyAndMeta& key_and_meta);
 
