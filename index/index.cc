@@ -3,6 +3,7 @@
 #include "leveldb/slice.h"
 #include "leveldb/index.h"
 #include "index_iterator.h"
+#include "db/table_cache.h"
 
 namespace leveldb {
 
@@ -88,6 +89,10 @@ void Index::AddQueue(std::deque<KeyAndMeta>& queue) {
   }
   condvar_.Signal();
   mutex_.Unlock();
+}
+
+Iterator* Index::NewIterator(const ReadOptions& options, TableCache* table_cache) {
+  return new IndexIterator(options, tree_.GetIterator(), table_cache);
 }
 
 } // namespace leveldb

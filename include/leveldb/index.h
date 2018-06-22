@@ -14,6 +14,8 @@
 
 namespace leveldb {
 
+class TableCache;
+
 struct IndexMeta {
 public:
   uint32_t offset;
@@ -45,6 +47,8 @@ class Index {
   void AsyncInsert(const KeyAndMeta& key_and_meta);
 
   void AddQueue(std::deque<KeyAndMeta>& queue);
+
+  Iterator* NewIterator(const ReadOptions& options, TableCache* table_cache);
 
   bool Acceptable() {
     return queue_.empty() && free_;

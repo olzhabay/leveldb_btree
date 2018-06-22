@@ -89,12 +89,12 @@ void FFBtreeIterator::Seek(const int64_t& key) {
            && (page = page->hdr.sibling_ptr)
            && key >= page->records[0].key);
 
-  valid = (ret != nullptr) ? true : false;
+  valid = ret != nullptr;
 }
 
 void FFBtreeIterator::Next() {
-	if(index == cur_page->count()-1) {
-		if(cur_page->hdr.sibling_ptr != NULL) {
+	if (cur_page->records[index+1].ptr == nullptr) {
+		if (cur_page->hdr.sibling_ptr != nullptr) {
 			cur_page = cur_page->hdr.sibling_ptr;
 			cur = &(cur_page->records[0]);
 			index = 0;
@@ -102,6 +102,10 @@ void FFBtreeIterator::Next() {
 	} else {
 		index = index+1;
 		cur = &(cur_page->records[index]);
+	}
+	// if this is a last key, make invalid
+	if ((cur_page->records[index+1].ptr == nullptr || cur_page->records[index+1].key == -1) && cur_page->hdr.sibling_ptr == nullptr) {
+	  valid = false;
 	}
 }
 
@@ -114,19 +118,11 @@ void FFBtreeIterator::Prev() {
 }
 
 int64_t FFBtreeIterator::key() const {
-  if(Valid()) {
-    return cur->key;
-  } else {
-    return -1;
-  }
+  return cur->key;
 }
 
 void* FFBtreeIterator::value() const {
-  if(Valid()) {
-	  return cur->ptr;
-  } else {
-	  return nullptr;
-  }
+  return cur->ptr;
 }
 
 } // namespace leveldb

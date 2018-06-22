@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <vector>
+#include <index/index_iterator.h>
 #include "db/builder.h"
 #include "db/db_iter.h"
 #include "db/dbformat.h"
@@ -1068,7 +1069,6 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
 namespace {
 struct IterState {
   port::Mutex* mu;
-  Version* version;
   MemTable* mem;
   MemTable* imm;
 };
@@ -1078,7 +1078,6 @@ static void CleanupIteratorState(void* arg1, void* arg2) {
   state->mu->Lock();
   state->mem->Unref();
   if (state->imm != NULL) state->imm->Unref();
-  state->version->Unref();
   state->mu->Unlock();
   delete state;
 }
@@ -1099,15 +1098,13 @@ Iterator* DBImpl::NewInternalIterator(const ReadOptions& options,
     list.push_back(imm_->NewIterator());
     imm_->Ref();
   }
-  versions_->current()->AddIterators(options, &list);
+  list.push_back(index_->NewIterator(options, table_cache_));
   Iterator* internal_iter =
       NewMergingIterator(&internal_comparator_, &list[0], list.size());
-  versions_->current()->Ref();
 
   cleanup->mu = &mutex_;
   cleanup->mem = mem_;
   cleanup->imm = imm_;
-  cleanup->version = versions_->current();
   internal_iter->RegisterCleanup(CleanupIteratorState, cleanup, NULL);
 
   *seed = ++seed_;
@@ -1155,7 +1152,7 @@ Status DBImpl::Get(const ReadOptions& options,
     } else if (imm != NULL && imm->Get(lkey, value, &s)) {
       // Done
     } else {
-      s = current->Get2(options, lkey, value);
+      s = current->Get(options, lkey, value);
     }
     mutex_.Lock();
   }

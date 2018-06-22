@@ -13,22 +13,26 @@ IndexIterator::IndexIterator(ReadOptions options, FFBtreeIterator* btree_iter, T
     : options_(options),
       btree_iterator_(btree_iter),
       table_cache_(table_cache),
-      block_iterator_(NULL),
-      cache_(NewLRUCache(8 << 20)){
+      cache_(NewLRUCache(20)),
+      block_iterator_(nullptr),
+      handle_(nullptr),
+      index_meta_(convert(0)) {
   SeekToFirst();
 }
 
 IndexIterator::~IndexIterator() {
+  if (handle_ != nullptr) cache_->Release(handle_);
   delete cache_;
   delete btree_iterator_;
 }
 
 bool IndexIterator::Valid() const {
-  return btree_iterator_->Valid();
+  return btree_iterator_->Valid() && block_iterator_ != nullptr && block_iterator_->Valid();
 }
 
 void IndexIterator::SeekToFirst() {
   btree_iterator_->SeekToFirst();
+  Advance();
 }
 
 void IndexIterator::SeekToLast() {
@@ -43,18 +47,21 @@ void IndexIterator::Seek(const Slice& target) {
 }
 
 void IndexIterator::Next() {
+  assert(btree_iterator_->Valid());
   btree_iterator_->Next();
   Advance();
-  while (fast_atoi(block_iterator_->key()) < btree_iterator_->key()) {
+  assert(status_.ok());
+  uint32_t key;
+  while ((key = fast_atoi(block_iterator_->key())) < btree_iterator_->key()) {
     block_iterator_->Next();
   }
-  if (fast_atoi(block_iterator_->key()) != btree_iterator_->key()) {
+  if (key != btree_iterator_->key()) {
     status_ = Status::NotFound(std::to_string(btree_iterator_->key()));
   }
 }
 
 void IndexIterator::Prev() {
-  btree_iterator_->Prev();
+  // not implemented
 }
 
 Slice IndexIterator::key() const {
@@ -71,17 +78,23 @@ Status IndexIterator::status() const {
 }
 
 void IndexIterator::CacheLookup() {
+  if (handle_ != nullptr) cache_->Release(handle_);
+  assert(btree_iterator_->value() != nullptr);
   char buf[sizeof(void*)];
   EncodeFixed64(buf, (uint64_t) btree_iterator_->value());
   Slice cache_key(buf, sizeof(buf));
-  Cache::Handle* handle = cache_->Lookup(cache_key);
-  if (handle == nullptr) {
+  handle_ = cache_->Lookup(cache_key);
+  if (handle_ == nullptr) {
     status_ = table_cache_->GetBlockIterator(options_, index_meta_.file_number,
-                                             index_meta_.offset, index_meta_.size, block_iterator_);
+                                             index_meta_.offset, index_meta_.size, &block_iterator_);
     if (!status_.ok()) return; // something went wrong
-    handle = cache_->Insert(cache_key, block_iterator_, index_meta_.size ,&DeleteIterator);
+    char key[100];
+    snprintf(key, sizeof(key), "%016lu", btree_iterator_->key());
+    block_iterator_->Seek(key);
+    handle_ = cache_->Insert(cache_key, block_iterator_, 1,&DeleteIterator);
+  } else {
+    block_iterator_ = reinterpret_cast<Iterator*>(cache_->Value(handle_));
   }
-  block_iterator_ = reinterpret_cast<Iterator*>(cache_->Value(handle));
 }
 
 void IndexIterator::Advance() {

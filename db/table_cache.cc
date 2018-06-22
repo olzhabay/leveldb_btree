@@ -9,9 +9,6 @@
 #include "leveldb/env.h"
 #include "leveldb/table.h"
 #include "util/coding.h"
-#ifdef PERF_LOG
-#include "util/perf_log.h"
-#endif
 
 namespace leveldb {
 
@@ -110,65 +107,21 @@ Iterator* TableCache::NewIterator(const ReadOptions& options,
 }
 
 Status TableCache::Get(const ReadOptions& options,
-                       uint64_t file_number,
-                       uint64_t file_size,
-                       const Slice& k,
-                       void* arg,
-                       void (*saver)(void*, const Slice&, const Slice&)) {
-  Cache::Handle* handle = NULL;
-  Status s = FindTable(file_number, file_size, &handle);
-  if (s.ok()) {
-    Table* t = reinterpret_cast<TableAndFile*>(cache_->Value(handle))->table;
-    s = t->InternalGet(options, k, arg, saver);
-    cache_->Release(handle);
-  }
-  return s;
-}
-
-Status TableCache::Get2(const ReadOptions& options,
-            uint64_t file_number,
-            const BlockHandle& block_handle,
-            const Slice& k,
-            void* arg,
-            void(*saver)(void*, const Slice&, const Slice&)) {
-  Cache::Handle* handle = NULL;
-  Status s = FindTable(file_number, 0, &handle);
-  if (s.ok()) {
-    Table* t = reinterpret_cast<TableAndFile*>(cache_->Value(handle))->table;
-    s = t->InternalGet2(options, k, block_handle, arg, saver);
-    cache_->Release(handle);
-  }
-  return s;
-}
-
-Status TableCache::Get3(const ReadOptions& options,
                         const uint16_t& file_number,
                         const uint32_t& offset,
                         const uint16_t& size,
                         const Slice& k,
                         void* arg,
                         void(*saver)(void*, const Slice&, const Slice&)) {
-  Cache::Handle* handle = NULL;
-  Status s = FindTable(file_number, 0, &handle);
-  assert(s.ok());
-  if (s.ok()) {
-    RandomAccessFile* file = reinterpret_cast<TableAndFile*>(cache_->Value(handle))->file;
-    BlockContents contents;
-#ifdef PERF_LOG
-    uint64_t start_micros = NowMicros();
-#endif
-    s = ReadBlock(file, options, BlockHandle(size, offset), &contents);
-#ifdef PERF_LOG
-    uint64_t micros = NowMicros() - start_micros;
-    logMicro(micros);
-#endif
-    Block block(contents);
-    Iterator* block_iter = block.NewIterator(options_->comparator);
+  Iterator* block_iter = nullptr;
+  Status s = GetBlockIterator(options, file_number, offset, size, &block_iter);
+  if (block_iter != nullptr) {
     block_iter->Seek(k);
-    (*saver)(arg, block_iter->key(), block_iter->value());
+    if (block_iter->Valid()) {
+      (*saver)(arg, block_iter->key(), block_iter->value());
+    }
     s = block_iter->status();
     delete block_iter;
-    cache_->Release(handle);
   }
   return s;
 }
@@ -177,18 +130,15 @@ Status TableCache::GetBlockIterator(const ReadOptions& options,
                         const u_int16_t file_number,
                         const uint32_t& offset,
                         const uint16_t& size,
-                        Iterator* iterator) {
+                        Iterator** iterator) {
   Cache::Handle* handle = nullptr;
-  iterator = nullptr;
   Status s = FindTable(file_number, 0, &handle);
   if (s.ok()) {
-    RandomAccessFile* file = reinterpret_cast<TableAndFile*>(cache_->Value(handle))->file;
-    BlockContents contents;
-    s = ReadBlock(file, options, BlockHandle(size, offset), &contents);
-    Block block(contents);
-    iterator = block.NewIterator(options_->comparator);
+    Table* table = reinterpret_cast<TableAndFile*>(cache_->Value(handle))->table;
+    *iterator = table->BlockIterator(options, BlockHandle(size, offset));
     cache_->Release(handle);
   }
+  assert(s.ok());
   return s;
 }
 
