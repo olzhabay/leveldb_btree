@@ -63,7 +63,6 @@ private:
   uint8_t switch_counter;     // 1 bytes
   uint8_t is_deleted;         // 1 bytes
   int16_t last_index;         // 2 bytes
-  char dummy[8];              // 8 bytes
 
   friend class Page;
   friend class FFBtree;
@@ -404,10 +403,9 @@ public:
       if (hdr.leftmost_ptr == nullptr) {
         for (i = *num_entries - 1; i >= 0; i--) {
           if (key == records[i].key) {
-            int f = i;
             records[i].ptr = ptr;
             if (flush) {
-              clflush((char*) &records[0].ptr, sizeof(void*));
+              clflush((char*) &records[i].ptr, sizeof(void*));
             }
             return;
           }
