@@ -45,25 +45,12 @@
 //      sstables    -- Print sstable info
 //      heapprofile -- Dump a heap profile (if supported by this port)
 static const char* FLAGS_benchmarks =
-    "fillseq,"
-    "fillsync,"
-    "fillrandom,"
-    "overwrite,"
-    "readrandom,"
-    "readrandom,"  // Extra run to allow previous compactions to quiesce
-    "rangequery,"
-    "readseq,"
-    "readreverse,"
-    "compact,"
-    "readrandom,"
-    "readseq,"
-    "readreverse,"
-    "fill100K,"
-    "crc32c,"
-    "snappycomp,"
-    "snappyuncomp,"
-    "acquireload,"
-    ;
+  "fillseq,"
+  "fillrandom,"
+  "readrandom,"
+  "readrandom,"
+  "rangequery,"
+;
 
 // Number of key/values to place in database
 static int FLAGS_num = 1000000;
@@ -535,19 +522,6 @@ class Benchmark {
       } else {
         if (name != Slice()) {  // No error message for empty name
           fprintf(stderr, "unknown benchmark '%s'\n", name.ToString().c_str());
-        }
-      }
-
-      if (fresh_db) {
-        if (FLAGS_use_existing_db) {
-          fprintf(stdout, "%-12s : skipped (--use_existing_db is true)\n",
-                  name.ToString().c_str());
-          method = NULL;
-        } else {
-          delete db_;
-          db_ = NULL;
-          DestroyDB(FLAGS_db, Options());
-          Open();
         }
       }
 

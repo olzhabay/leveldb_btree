@@ -75,6 +75,10 @@ class Version {
 
   Status Get(const ReadOptions&, const LookupKey& key, std::string* val);
 
+  Status Get(const ReadOptions&, const LookupKey& key, std::string* val,
+             GetStats* stats);
+
+
   // Adds "stats" into the current state.  Returns true if a new
   // compaction may need to be triggered, false otherwise.
   // REQUIRES: lock is held

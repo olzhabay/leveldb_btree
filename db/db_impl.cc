@@ -1142,6 +1142,9 @@ Status DBImpl::Get(const ReadOptions& options,
   if (imm != NULL) imm->Ref();
   current->Ref();
 
+//  bool have_stat_update = false;
+//  Version::GetStats stats;
+
   // Unlock while reading from files and memtables
   {
     mutex_.Unlock();
@@ -1153,9 +1156,15 @@ Status DBImpl::Get(const ReadOptions& options,
       // Done
     } else {
       s = current->Get(options, lkey, value);
+//      s = current->Get(options, lkey, value, &stats);
+//      have_stat_update = true;
     }
     mutex_.Lock();
   }
+
+//  if (have_stat_update && current->UpdateStats(stats)) {
+//    MaybeScheduleCompaction();
+//  }
 
   mem->Unref();
   if (imm != NULL) imm->Unref();

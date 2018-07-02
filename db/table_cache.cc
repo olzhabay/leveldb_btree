@@ -126,6 +126,22 @@ Status TableCache::Get(const ReadOptions& options,
   return s;
 }
 
+Status TableCache::Get(const ReadOptions& options,
+                       uint64_t file_number,
+                       uint64_t file_size,
+                       const Slice& k,
+                       void* arg,
+                       void (*saver)(void*, const Slice&, const Slice&)) {
+  Cache::Handle* handle = NULL;
+  Status s = FindTable(file_number, file_size, &handle);
+  if (s.ok()) {
+    Table* t = reinterpret_cast<TableAndFile*>(cache_->Value(handle))->table;
+    s = t->InternalGet(options, k, arg, saver);
+    cache_->Release(handle);
+  }
+  return s;
+}
+
 Status TableCache::GetBlockIterator(const ReadOptions& options,
                         const u_int16_t file_number,
                         const uint32_t& offset,
