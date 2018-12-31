@@ -15,6 +15,7 @@
 #include "util/coding.h"
 #include "util/crc32c.h"
 #include "leveldb/index.h"
+#include "db/dbformat.h"
 
 namespace leveldb {
 
@@ -120,16 +121,16 @@ void TableBuilder::Add(const Slice& key, const Slice& value) {
     r->pending_index_entry = false;
   }
 
-  if (r->filter_block != NULL) {
+  if (r->filter_block != nullptr) {
     r->filter_block->AddKey(key);
   }
 
   r->last_key.assign(key.data(), key.size());
   r->num_entries++;
   r->data_block.Add(key, value);
-  // add to index queue block meta 
+  // add to index queue block meta
   KeyAndMeta key_meta;
-  key_meta.key = fast_atoi(key.data(), key.size()-8);
+  key_meta.key = fast_atoi(ExtractUserKey(key));
   key_meta.meta = r->index_meta;
   r->index_queue.push_back(key_meta);
 

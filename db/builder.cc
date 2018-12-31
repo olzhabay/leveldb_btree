@@ -31,14 +31,18 @@ Status BuildTable(const std::string& dbname,
     if (!s.ok()) {
       return s;
     }
-
     TableBuilder* builder = new TableBuilder(options, file, meta->number);
     meta->smallest.DecodeFrom(iter->key());
+    Slice prev_key;
     for (; iter->Valid(); iter->Next()) {
       Slice key = iter->key();
-      meta->largest.DecodeFrom(key);
-      builder->Add(key, iter->value());
+      Slice value = iter->value();
+      if (prev_key.empty() || options.comparator->Compare(ExtractUserKey(prev_key), ExtractUserKey(key)) != 0) {
+        builder->Add(key, value);
+        prev_key = key;
+      }
     }
+    meta->largest.DecodeFrom(prev_key);
 
     // Finish and check for builder errors
     s = builder->Finish();
@@ -48,7 +52,7 @@ Status BuildTable(const std::string& dbname,
     }
     delete builder;
     delete file;
-    file = NULL;
+    file = nullptr;
 
     if (s.ok()) {
       // Verify that the table is usable

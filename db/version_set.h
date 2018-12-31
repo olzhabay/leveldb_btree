@@ -348,6 +348,8 @@ class Compaction {
   // "which" must be either 0 or 1
   int num_input_files(int which) const { return inputs_[which].size(); }
 
+  bool IsInput(uint64_t num);
+
   // Return the ith input file at "level()+which" ("which" must be 0 or 1).
   FileMetaData* input(int which, int i) const { return inputs_[which][i]; }
 

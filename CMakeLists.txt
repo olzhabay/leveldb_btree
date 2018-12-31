@@ -8,7 +8,7 @@ set(SNAPPY_LIBRARY "")
 
 string(REGEX MATCH "clang" CLANG ${CMAKE_CXX_COMPILER})
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
-#find_package(PMDK)
+find_package(PMDK)
 set(Stdcpp_LIBRARY stdc++)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CLANG)
@@ -204,11 +204,11 @@ set_target_properties(leveldb PROPERTIES PUBLIC_HEADER
 target_link_libraries(leveldb
         PRIVATE
         ${Pthread_LIBRARY}
-        #${PMEM_LIBRARY}
-        #${PMEMCTO_LIBRARY}
-        #${PMEMOBJ_LIBRARY}
-        #${PMEMLOG_LIBRARY}
-        #${VMEM_LIBRARY}
+        ${PMEM_LIBRARY}
+        ${PMEMCTO_LIBRARY}
+        ${PMEMOBJ_LIBRARY}
+        ${PMEMLOG_LIBRARY}
+        ${VMEM_LIBRARY}
         )
 
 INSTALL(TARGETS leveldb ARCHIVE DESTINATION /usr/local/lib PUBLIC_HEADER DESTINATION /usr/local/include/leveldb)

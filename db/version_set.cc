@@ -1511,6 +1511,17 @@ Compaction::~Compaction() {
   }
 }
 
+bool Compaction::IsInput(uint64_t num) {
+  for (const auto& level : inputs_) {
+    for (const auto& f : level) {
+      if (f->number == num) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 bool Compaction::IsTrivialMove() const {
   const VersionSet* vset = input_version_->vset_;
   // Avoid a move if there is lots of overlapping grandparent data.
