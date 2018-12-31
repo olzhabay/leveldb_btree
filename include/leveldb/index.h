@@ -2,87 +2,52 @@
 #define STORAGE_LEVELDB_INCLUDE_INDEX_H_
 
 #include <cstdint>
-#include <map>
+#include <memory>
 #include <deque>
-#include <shared_mutex>
-#include "port/port.h"
-#include "table/format.h"
-#include "index/nvm_btree.h"
-#include "index/ff_btree.h"
-#include "leveldb/env.h"
+#include "leveldb/slice.h"
 #include "leveldb/iterator.h"
+#include "leveldb/options.h"
+
+using entry_key_t = uint64_t;
 
 namespace leveldb {
 
 class TableCache;
+class VersionEdit;
 
 struct IndexMeta {
 public:
   uint32_t offset;
-  uint16_t size;
+  uint32_t size;
   uint16_t file_number;
 
   IndexMeta() : offset(0), size(0), file_number(0) { }
 
   IndexMeta(uint32_t offset, uint16_t size, uint16_t file_number) :
     offset(offset), size(size), file_number(file_number) { }
+
 };
 
-void* convert(IndexMeta meta);
-IndexMeta convert(void* ptr);
+extern bool IsEqual(const IndexMeta* lhs, const IndexMeta* rhs);
 
 struct KeyAndMeta{
-  uint32_t key;
+  entry_key_t key;
   std::shared_ptr<IndexMeta> meta;
 };
 
 class Index {
- public:
-  Index();
-
-  IndexMeta Get(const Slice& key);
-
-  void Insert(const uint32_t& key, IndexMeta meta);
-
-  void AsyncInsert(const KeyAndMeta& key_and_meta);
-
-  void AddQueue(std::deque<KeyAndMeta>& queue);
-
-  Iterator* NewIterator(const ReadOptions& options, TableCache* table_cache);
-
-  bool Acceptable() {
-    return queue_.empty() && free_;
-  }
-
-  bool IsQueueEmpty() { return queue_.empty(); }
-
-  void CompactionFinished() {
-    free_ = true;
-  }
-
-  void CompactionStarted() {
-    free_ = false;
-  }
-
-  void Runner();
-
-  static void* ThreadWrapper(void* index);
-
- private:
-
-  FFBtree tree_; // Temporary
-  bool bgstarted_;
-  pthread_t thread_;
-  port::Mutex mutex_;
-  port::CondVar condvar_;
-  bool free_;
-
-  std::deque<KeyAndMeta> queue_;
-
-  Index(const Index&);
-  void operator=(const Index&);
+public:
+  Index() = default;
+  virtual ~Index() = default;
+  //virtual void Insert(const uint32_t& key, IndexMeta meta) = 0;
+  virtual IndexMeta* Get(const Slice& key) = 0;
+  virtual void AddQueue(std::deque<KeyAndMeta>& queue) = 0;
+  virtual Iterator* NewIterator(const ReadOptions& options, TableCache* table_cache) = 0;
+  virtual void Break() = 0;
 };
+
+Index* CreateBtreeIndex();
 
 } // namespace leveldb
 
-#endif // STORAGE_LEVELDB_INCLUDE_INDEX_H_
+#endif //STORAGE_LEVELDB_INCLUDE_INDEX_H_

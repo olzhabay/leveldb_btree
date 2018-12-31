@@ -15,13 +15,13 @@ public:
 
   void SeekToLast();
 
-  void Seek(const int64_t& key);
+  void Seek(const entry_key_t& key);
 
   void Next();
 
   void Prev();
 
-  int64_t key() const;
+  entry_key_t key() const;
 
   void* value() const;
 
@@ -31,6 +31,7 @@ private:
   Page* cur_page;
   int index;
   bool valid; // validity of current entry
+  bool last;
 };
 
 } // namespace leveldb

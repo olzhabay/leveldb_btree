@@ -3,20 +3,21 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #include "util/arena.h"
-#include <assert.h>
+#include <cassert>
+#include "include/leveldb/persistant_pool.h"
 
 namespace leveldb {
 
 static const int kBlockSize = 4096;
 
-Arena::Arena() : memory_usage_(0) {
+Arena::Arena() : memory_usage_(nullptr) {
   alloc_ptr_ = nullptr;  // First allocation will allocate a block
   alloc_bytes_remaining_ = 0;
 }
 
 Arena::~Arena() {
-  for (size_t i = 0; i < blocks_.size(); i++) {
-    delete[] blocks_[i];
+  for (auto& block : blocks_) {
+    nvram::pfree(block);
   }
 }
 
@@ -58,7 +59,7 @@ char* Arena::AllocateAligned(size_t bytes) {
 }
 
 char* Arena::AllocateNewBlock(size_t block_bytes) {
-  char* result = new char[block_bytes];
+  char *result = (char*) nvram::pmalloc(block_bytes);
   blocks_.push_back(result);
   memory_usage_.NoBarrier_Store(
       reinterpret_cast<void*>(MemoryUsage() + block_bytes + sizeof(char*)));

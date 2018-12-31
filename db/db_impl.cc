@@ -37,6 +37,8 @@
 
 #ifdef PERF_LOG
 #include "util/perf_log.h"
+#include "db_impl.h"
+
 #endif
 
 namespace leveldb {
@@ -1100,7 +1102,7 @@ Iterator* DBImpl::NewInternalIterator(const ReadOptions& options,
   }
   list.push_back(index_->NewIterator(options, table_cache_));
   Iterator* internal_iter =
-      NewMergingIterator(&internal_comparator_, &list[0], list.size());
+          NewMergingIterator(&internal_comparator_, &list[0], list.size());
 
   cleanup->mu = &mutex_;
   cleanup->mem = mem_;
@@ -1492,6 +1494,44 @@ void DBImpl::GetApproximateSizes(
     MutexLock l(&mutex_);
     v->Unref();
   }
+}
+
+Status DBImpl::Update(const WriteOptions &options, const Slice &key, const Slice &value) {
+  Status s;
+  SequenceNumber snapshot = versions_->LastSequence();
+  MemTable* mem = mem_;
+  MemTable* imm = imm_;
+  mem->Ref();
+  if (imm != nullptr) imm->Ref();
+  Index* index = index_;
+  bool exists = false;
+  std::string v;
+  LookupKey lkey(key, snapshot);
+  if (mem->Get(lkey, &v, &s)) {
+    exists = true;
+  } else if (imm != nullptr && imm->Get(lkey, &v, &s)) {
+    exists = true;
+  } else if (index->Get(key) != nullptr){
+    exists = true;
+  }
+  mem->Unref();
+  if (imm != nullptr) imm->Unref();
+  if (exists) {
+    s = Put(options, key, value);
+    return Status::OK();
+  }
+  return Status::OK();
+}
+
+void DBImpl::WaitComp() {
+  while (!env_->IsSchedulerEmpty() || bg_compaction_scheduled_) {
+    env_->SleepForMicroseconds(1000000);
+  }
+  Log(options_.info_log, "Finished all scheduled compaction");
+}
+
+Logger *DBImpl::GetLogger() const {
+  return options_.info_log;
 }
 
 // Default implementations of convenience methods that subclasses of DB

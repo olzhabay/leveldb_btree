@@ -3,16 +3,15 @@
 
 #include <vector>
 #include "leveldb/iterator.h"
-#include "leveldb/index.h"
+#include "btree_index.h"
 #include "index/ff_btree_iterator.h"
 #include "table/format.h"
-#include "db/version_set.h"
 #include "db/table_cache.h"
 
 namespace leveldb {
 
 class IndexIterator : public Iterator {
- public:
+public:
   IndexIterator(ReadOptions options, FFBtreeIterator* btree_iter, TableCache* table_cache);
   ~IndexIterator();
 
@@ -26,15 +25,17 @@ class IndexIterator : public Iterator {
   virtual Slice value() const;
   virtual Status status() const;
 
- private:
+private:
   FFBtreeIterator* btree_iterator_;
-  Cache* cache_;
-  Cache::Handle* handle_;
-  IndexMeta index_meta_;
+  IndexMeta* index_meta_;
   ReadOptions options_;
   TableCache* table_cache_;
   Iterator* block_iterator_;
+  std::set<uint16_t> uniq_files_;
+  std::set<uint16_t> files_to_merge_;
   Status status_;
+  int counter_;
+
 
   void CacheLookup();
   void Advance();

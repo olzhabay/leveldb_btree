@@ -32,6 +32,7 @@ class DBImpl : public DB {
   virtual Status Put(const WriteOptions&, const Slice& key, const Slice& value);
   virtual Status Delete(const WriteOptions&, const Slice& key);
   virtual Status Write(const WriteOptions& options, WriteBatch* updates);
+  virtual Status Update(const WriteOptions& options, const Slice& key, const Slice& value);
   virtual Status Get(const ReadOptions& options,
                      const Slice& key,
                      std::string* value);
@@ -41,6 +42,8 @@ class DBImpl : public DB {
   virtual bool GetProperty(const Slice& property, std::string* value);
   virtual void GetApproximateSizes(const Range* range, int n, uint64_t* sizes);
   virtual void CompactRange(const Slice* begin, const Slice* end);
+  virtual void WaitComp();
+  virtual Logger* GetLogger() const;
 
   Status CompactMemTableSynchronous();
   // Extra methods (for testing) that are not in the public DB interface

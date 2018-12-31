@@ -7,8 +7,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(SNAPPY_LIBRARY "")
 
 string(REGEX MATCH "clang" CLANG ${CMAKE_CXX_COMPILER})
-
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+#find_package(PMDK)
+set(Stdcpp_LIBRARY stdc++)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CLANG)
     find_library(Pthread_LIBRARY pthread)
@@ -67,6 +68,7 @@ set(LEVEL_DB_FILES
         include/leveldb/write_batch.h
         include/leveldb/export.h
         include/leveldb/index.h
+        include/leveldb/persistant_pool.h
         db/c.cc
         db/builder.cc
         db/builder.h
@@ -98,9 +100,6 @@ set(LEVEL_DB_FILES
         db/version_set.h
         db/write_batch.cc
         db/write_batch_internal.h
-        index/index.cc
-        index/nvm_btree.cc
-        index/nvm_btree.h
         db/logger.cc
         db/logger.h
         table/block.cc
@@ -145,17 +144,20 @@ set(LEVEL_DB_FILES
         util/testharness.cc
         util/testutil.h
         util/testutil.cc
-        port/port.h
-        port/atomic_pointer.h
-        index/index_iterator.h
-        index/index_iterator.cc
         util/perf_log.cc
         util/perf_log.h
-        index/btree.h
-        index/ff_btree.h
+        util/persistant_pool.cc
+        port/port.h
+        port/atomic_pointer.h
+        index/btree_index.cc
+        index/btree_index.h
+        index/index_iterator.cc
+        index/index_iterator.h
         index/ff_btree.cc
+        index/ff_btree.h
         index/ff_btree_iterator.cc
-        index/ff_btree_iterator.h)
+        index/ff_btree_iterator.h
+        index/index.cc)
 
 if(WIN32)
     list(APPEND LEVEL_DB_FILES
@@ -180,30 +182,36 @@ target_include_directories(leveldb
         )
 
 set_target_properties(leveldb PROPERTIES PUBLIC_HEADER
-        "include/leveldb/c.h;include/leveldb/cache.h;include/leveldb/comparator.h;include/leveldb/db.h;include/leveldb/dumpfile.h;include/leveldb/env.h;include/leveldb/iterator.h;include/leveldb/filter_policy.h;include/leveldb/iterator.h;include/leveldb/options.h;include/leveldb/slice.h;include/leveldb/status.h;include/leveldb/table.h;include/leveldb/table_builder.h;include/leveldb/write_batch.h;include/leveldb/export.h; include/leveldb/global_index.h")
+        "include/leveldb/c.h;
+        include/leveldb/cache.h;
+        include/leveldb/comparator.h;
+        include/leveldb/db.h;
+        include/leveldb/dumpfile.h;
+        include/leveldb/env.h;
+        include/leveldb/iterator.h;
+        include/leveldb/filter_policy.h;
+        include/leveldb/iterator.h;
+        include/leveldb/options.h;
+        include/leveldb/slice.h;
+        include/leveldb/status.h;
+        include/leveldb/table.h;
+        include/leveldb/table_builder.h;
+        include/leveldb/write_batch.h;
+        include/leveldb/export.h;
+        include/leveldb/index.h;
+        include/leveldb/persistant_pool.h")
 
 target_link_libraries(leveldb
         PRIVATE
-        ${Boost_LIBRARIES}
         ${Pthread_LIBRARY}
+        #${PMEM_LIBRARY}
+        #${PMEMCTO_LIBRARY}
+        #${PMEMOBJ_LIBRARY}
+        #${PMEMLOG_LIBRARY}
+        #${VMEM_LIBRARY}
         )
 
 INSTALL(TARGETS leveldb ARCHIVE DESTINATION /usr/local/lib PUBLIC_HEADER DESTINATION /usr/local/include/leveldb)
-
-add_executable(insert_bench bench/insert_bench.cc)
-target_link_libraries(insert_bench PUBLIC leveldb)
-
-add_executable(read_bench bench/read_bench.cc)
-target_link_libraries(read_bench PUBLIC leveldb)
-
-add_executable(simple_bench bench/simple_bench.cc)
-target_link_libraries(simple_bench PUBLIC leveldb)
-
-add_executable(sanity_check bench/sanity_check.cc)
-target_link_libraries(sanity_check PUBLIC leveldb)
-
-add_executable(ff_btree_test index/ff_btree_test.cc)
-target_link_libraries(ff_btree_test PUBLIC leveldb)
 
 add_executable(db_bench db/db_bench.cc)
 target_link_libraries(db_bench PUBLIC leveldb)

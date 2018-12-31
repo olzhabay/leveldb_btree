@@ -6,11 +6,18 @@
 
 namespace leveldb {
 
-static FILE* block_log;
+namespace benchmark {
 
-void logMicro(uint64_t micro) {
-    fprintf(block_log, "%lu\n", micro);
+static PerfLog* log;
+
+void CreatePerfLog() {
+  log = new PerfLog;
 }
+
+void ClearPerfLog() {
+  if (log == nullptr) return;
+  log->Clear();
+};
 
 uint64_t NowMicros() {
   struct timeval tv;
@@ -18,13 +25,26 @@ uint64_t NowMicros() {
   return static_cast<uint64_t>(tv.tv_sec) * 1000000 + tv.tv_usec;
 }
 
-void createPerfLog() {
-  block_log = fopen("block_log", "w");
+void LogMicros(Type type, uint64_t micros) {
+  if (log == nullptr) return;
+  log->LogMicro(type, micros);
 }
 
-void closePerfLog() {
-  fclose(block_log);
+std::string GetInfo() {
+  if (log == nullptr) return std::string();
+  return log->GetInfo();
 }
 
+std::string GetHistogram() {
+  if (log == nullptr) return std::string();
+  return log->GetHistogram();
+}
+
+void ClosePerfLog() {
+  delete log;
+  log = nullptr;
+}
+
+}
 
 }

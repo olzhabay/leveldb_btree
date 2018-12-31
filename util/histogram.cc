@@ -36,6 +36,7 @@ void Histogram::Clear() {
   num_ = 0;
   sum_ = 0;
   sum_squares_ = 0;
+  b_count_ = 0;
   for (int i = 0; i < kNumBuckets; i++) {
     buckets_[i] = 0;
   }
@@ -48,6 +49,7 @@ void Histogram::Add(double value) {
     b++;
   }
   buckets_[b] += 1.0;
+  if (b_count_ < b) b_count_ = b;
   if (min_ > value) min_ = value;
   if (max_ < value) max_ = value;
   num_++;
@@ -132,6 +134,34 @@ std::string Histogram::ToString() const {
     int marks = static_cast<int>(20*(buckets_[b] / num_) + 0.5);
     r.append(marks, '#');
     r.push_back('\n');
+  }
+  return r;
+}
+
+std::string Histogram::GetInfo() const {
+  std::string r;
+  r.append("Count, Average, StdDev, Min, Median, Max,\n");
+  char buf[200];
+  snprintf(buf, sizeof(buf), "%f, %f, %f, %f, %f, %f,\n",
+           num_, Average(), StandardDeviation(), (num_ == 0.0 ? 0.0 : min_), Median(), max_);
+  r.append(buf);
+  return r;
+}
+
+std::string Histogram::GetHistogram() const {
+  std::string r;
+  char buf[200];
+  const double mult = 100.0 / num_;
+  double sum = 0;
+  r.append("Value, Count, Percentage, Cumulative Percentage, \n");
+  for (int b = 0; b < b_count_; b++) {
+    sum += buckets_[b];
+    snprintf(buf, sizeof(buf), "%f, %f, %f, %f, \n",
+             ((b == 0) ? 0.0 : kBucketLimit[b-1]),     // Value
+             buckets_[b],                              // Count
+             mult * buckets_[b],                       // Percentage
+             mult * sum);                              // Cumulative Percentage
+    r.append(buf);
   }
   return r;
 }

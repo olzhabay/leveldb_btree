@@ -19,6 +19,9 @@
 #include "leveldb/index.h"
 #include "util/coding.h"
 #include "util/logging.h"
+#ifdef PERF_LOG
+#include "util/perf_log.h"
+#endif
 
 namespace leveldb {
 
@@ -332,25 +335,30 @@ void Version::ForEachOverlapping(Slice user_key, Slice internal_key,
 }
 
 Status Version::Get(const ReadOptions& options,
-                    const LookupKey& k,
-                    std::string* value) {
+                    const LookupKey& key,
+                    std::string* val) {
   Status s;
-  Slice ikey = k.internal_key();
-  Slice user_key = k.user_key();
+  Slice ikey = key.internal_key();
+  Slice user_key = key.user_key();
   const Comparator* ucmp = vset_->icmp_.user_comparator();
 
-  Index* index = vset_->options_->index;
-  IndexMeta index_meta = index->Get(user_key);
+  Index* index = vset_->options()->index;
 
-  if (convert(index_meta) != 0) {
+#ifdef PERF_LOG
+  uint64_t start_micros = benchmark::NowMicros();
+  const IndexMeta* index_meta = index->Get(user_key);
+  benchmark::LogMicros(benchmark::QUERY, benchmark::NowMicros() - start_micros);
+#else
+  const IndexMeta* index_meta = index->Get(user_key);
+#endif
+
+  if (index_meta != nullptr) {
     Saver saver;
     saver.state = kNotFound;
     saver.ucmp = ucmp;
     saver.user_key = user_key;
-    saver.value = value;
-    s = vset_->table_cache_->Get(options, index_meta.file_number, index_meta.offset, index_meta.size,
-                                  ikey, &saver, SaveValue);
-
+    saver.value = val;
+    s = vset_->cache()->Get(options, index_meta, ikey, &saver, SaveValue);
     if (!s.ok()) {
       return s;
     }
@@ -361,14 +369,14 @@ Status Version::Get(const ReadOptions& options,
       case kFound:
         return s;
       case kDeleted:
-        s = Status::NotFound(Slice());  // Use empty error message for speed
+        s = Status::NotFound(Slice());
         return s;
       case kCorrupt:
-        s = Status::Corruption("corrupted key for ", user_key);
+        s = Status::Corruption("corrupted key for", user_key);
         return s;
     }
   }
-  return Status::NotFound(Slice());  // Use an empty error message for speed
+  return Status::NotFound(Slice());
 }
 
 

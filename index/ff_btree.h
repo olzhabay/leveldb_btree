@@ -1,3 +1,5 @@
+#include <utility>
+
 #ifndef STORAGE_LEVELDB_INDEX_FF_BTREE_H_
 #define STORAGE_LEVELDB_INDEX_FF_BTREE_H_
 
@@ -15,13 +17,13 @@
 #include <climits>
 #include <future>
 #include <mutex>
-#include "index/btree.h"
+#include "leveldb/persistant_pool.h"
+#include "leveldb/index.h"
 #include "util/persist.h"
 #include "leveldb/iterator.h"
 
 #define IS_FORWARD(c) (c % 2 == 0)
 
-using entry_key_t = int64_t;
 
 using namespace std;
 
@@ -30,26 +32,24 @@ namespace leveldb {
 class FFBtreeIterator;
 class Page;
 
-class FFBtree : public Btree {
+class FFBtree {
 private:
   int height;
   void* root;
 
   void setNewRoot(void* new_root);
   // store the key into the node at the given level
-  void InsertInternal(void* left, entry_key_t key, void* right, uint32_t level);
-  void RemoveInternal(entry_key_t left, void* ptr, uint32_t level,
+  void* InsertInternal(void* left, const entry_key_t& key, void* right, uint32_t level);
+  void RemoveInternal(const entry_key_t& key, void* ptr, uint32_t level,
                       entry_key_t* deleted_key, bool* is_leftmost_node, Page** left_sibling);
 
 public:
   FFBtree();
 // insert the key in the leaf node
-  void Insert(entry_key_t key, void* right);
-  void Remove(entry_key_t key);
-  void* Search(entry_key_t key);
+  void* Insert(const entry_key_t& key, void* right);
+  void Remove(const entry_key_t& key);
+  void* Search(const entry_key_t& key);
   FFBtreeIterator* GetIterator();
-// Function to Search keys from "min" to "max"
-  void Range(entry_key_t min, entry_key_t max, unsigned long* buf);
 
   friend class Page;
   friend class FFBtreeIterator;
@@ -61,7 +61,7 @@ private:
   Page* sibling_ptr;          // 8 bytes
   uint32_t level;             // 4 bytes
   uint8_t switch_counter;     // 1 bytes
-  uint8_t is_deleted;         // 1 bytes
+  bool is_deleted;         // 1 bytes
   int16_t last_index;         // 2 bytes
 
   friend class Page;
@@ -86,7 +86,7 @@ private:
   void* ptr; // 8 bytes
 public :
   Entry() {
-    key = LONG_MAX;
+    key = 0;
     ptr = NULL;
   }
 
@@ -113,7 +113,7 @@ public:
   }
 
   // this is called when tree grows
-  Page(Page* left, entry_key_t key, Page* right, uint32_t level = 0) {
+  Page(Page* left, const entry_key_t& key, Page* right, uint32_t level = 0) {
     hdr.leftmost_ptr = left;
     hdr.level = level;
     records[0].key = key;
@@ -126,12 +126,11 @@ public:
   }
 
   void* operator new(size_t size) {
-    void* ret;
-    return posix_memalign(&ret, 64, size) == 0 ? ret : nullptr;
+    return nvram::pmalloc(size);
   }
 
   void operator delete(void* buffer) {
-    free(buffer);
+    nvram::pfree(buffer);
   }
 
   inline int count() {
@@ -160,7 +159,7 @@ public:
     return count;
   }
 
-  inline bool remove_key(entry_key_t key) {
+  inline bool remove_key(const entry_key_t& key) {
     // Set the switch_counter
     if (IS_FORWARD(hdr.switch_counter))
       ++hdr.switch_counter;
@@ -180,7 +179,7 @@ public:
 
         // flush
         uint64_t records_ptr = (uint64_t) (&records[i]);
-        int remainder = records_ptr % CACHE_LINE_SIZE;
+        uint64_t remainder = records_ptr % CACHE_LINE_SIZE;
         bool do_flush = (remainder == 0) ||
                         ((((int) (remainder + sizeof(Entry)) / CACHE_LINE_SIZE) == 1) &&
                          ((remainder + sizeof(Entry)) % CACHE_LINE_SIZE) != 0);
@@ -196,7 +195,7 @@ public:
     return shift;
   }
 
-  bool remove(FFBtree* bt, entry_key_t key, bool only_rebalance = false, bool with_lock = true) {
+  bool remove(FFBtree* bt, const entry_key_t& key, bool only_rebalance = false, bool with_lock = true) {
     if (!only_rebalance) {
       int num_entries_before = count();
 
@@ -260,7 +259,7 @@ public:
         if (hdr.leftmost_ptr == nullptr) {
           for (int i = left_num_entries - 1; i >= m; i--) {
             insert_key
-                (left_sibling->records[i].key, left_sibling->records[i].ptr, &num_entries);
+              (left_sibling->records[i].key, left_sibling->records[i].ptr, &num_entries);
           }
 
           left_sibling->records[m].ptr = nullptr;
@@ -276,7 +275,7 @@ public:
 
           for (int i = left_num_entries - 1; i > m; i--) {
             insert_key
-                (left_sibling->records[i].key, left_sibling->records[i].ptr, &num_entries);
+              (left_sibling->records[i].key, left_sibling->records[i].ptr, &num_entries);
           }
 
           parent_key = left_sibling->records[m].key;
@@ -296,7 +295,7 @@ public:
           bt->setNewRoot(new_root);
         } else {
           bt->InsertInternal
-              (left_sibling, parent_key, this, hdr.level + 1);
+            (left_sibling, parent_key, this, hdr.level + 1);
         }
       } else { // from leftmost case
         hdr.is_deleted = 1;
@@ -372,8 +371,8 @@ public:
     return true;
   }
 
-  inline void
-  insert_key(entry_key_t key, void* ptr, int* num_entries, bool flush = true,
+  inline void*
+  insert_key(const entry_key_t& key, void* ptr, int* num_entries, bool flush = true,
              bool update_last_index = true) {
     // update switch_counter
     if (!IS_FORWARD(hdr.switch_counter))
@@ -381,18 +380,19 @@ public:
 
     // FAST
     if (*num_entries == 0) {  // this page is empty
-      Entry* new_entry = (Entry*) &records[0];
-      Entry* array_end = (Entry*) &records[1];
-      new_entry->key = (entry_key_t) key;
-      new_entry->ptr = ptr;
+//      Entry* new_entry = &records[0];
+//      Entry* array_end = &records[1];
+      records[0].key = key;
+      records[0].ptr = ptr;
 
-      array_end->ptr = NULL;
+      records[1].ptr = NULL;
 
       if (flush) {
         clflush((char*) this, CACHE_LINE_SIZE);
       }
     } else {
-      int i = *num_entries - 1, inserted = 0, to_flush_cnt = 0;
+      int i, to_flush_cnt = 0;
+      bool inserted = false;
       records[*num_entries + 1].ptr = records[*num_entries].ptr;
       if (flush) {
         if ((uint64_t) &(records[*num_entries + 1].ptr) % CACHE_LINE_SIZE == 0)
@@ -403,11 +403,12 @@ public:
       if (hdr.leftmost_ptr == nullptr) {
         for (i = *num_entries - 1; i >= 0; i--) {
           if (key == records[i].key) {
+            void* old_ptr = records[i].ptr;
             records[i].ptr = ptr;
             if (flush) {
               clflush((char*) &records[i].ptr, sizeof(void*));
             }
-            return;
+            return old_ptr;
           }
         }
       }
@@ -421,7 +422,7 @@ public:
           if (flush) {
             uint64_t records_ptr = (uint64_t) (&records[i + 1]);
 
-            int remainder = records_ptr % CACHE_LINE_SIZE;
+            uint64_t remainder = records_ptr % CACHE_LINE_SIZE;
             bool do_flush = (remainder == 0) ||
                             ((((int) (remainder + sizeof(Entry)) / CACHE_LINE_SIZE) == 1)
                              && ((remainder + sizeof(Entry)) % CACHE_LINE_SIZE) != 0);
@@ -432,18 +433,18 @@ public:
               ++to_flush_cnt;
           }
         } else {
-          records[i + 1].ptr = records[i].ptr;
+//          records[i + 1].ptr = records[i].ptr;
           records[i + 1].key = key;
           records[i + 1].ptr = ptr;
 
           if (flush)
             clflush((char*) &records[i + 1], sizeof(Entry));
-          inserted = 1;
+          inserted = true;
           break;
         }
       }
-      if (inserted == 0) {
-        records[0].ptr = hdr.leftmost_ptr;
+      if (!inserted) {
+//        records[0].ptr = hdr.leftmost_ptr;
         records[0].key = key;
         records[0].ptr = ptr;
         if (flush)
@@ -455,11 +456,12 @@ public:
       hdr.last_index = *num_entries;
     }
     ++(*num_entries);
+    return nullptr;
   }
 
   // Insert a new key - FAST and FAIR
-  Page* store(FFBtree* bt, void* left, entry_key_t key, void* right,
-              bool flush, Page* invalid_sibling = NULL) {
+  Page* store(FFBtree* bt, void* left, const entry_key_t& key, void* right,
+              bool flush, Page* invalid_sibling = NULL, void** upd_ptr = NULL) {
     // If this node has a sibling node,
     if (hdr.sibling_ptr && (hdr.sibling_ptr != invalid_sibling)) {
       // Compare this key with the first key of the sibling
@@ -473,7 +475,7 @@ public:
 
     // FAST
     if (num_entries < cardinality - 1) {
-      insert_key(key, right, &num_entries, flush);
+      *upd_ptr = insert_key(key, right, &num_entries, flush);
       return this;
     } else {// FAIR
       // overflow
@@ -486,7 +488,7 @@ public:
       int sibling_cnt = 0;
       if (hdr.leftmost_ptr == NULL) { // leaf node
         for (int i = m; i < num_entries; ++i) {
-          sibling->insert_key(records[i].key, records[i].ptr, &sibling_cnt, false);
+          *upd_ptr = sibling->insert_key(records[i].key, records[i].ptr, &sibling_cnt, false);
         }
       } else { // internal node
         for (int i = m + 1; i < num_entries; ++i) {
@@ -527,20 +529,18 @@ public:
 
       // Set a new root or insert the split key to the parent
       if (bt->root == this) { // only one node can update the root ptr
-        Page* new_root = new Page((Page*) this, split_key, sibling,
-                                  hdr.level + 1);
-        bt->setNewRoot(new_root);
-      } else {
-        bt->InsertInternal(NULL, split_key, sibling,
-                           hdr.level + 1);
+        Page* new_root = new Page(this, split_key, sibling, hdr.level + 1);
+        bt->setNewRoot((char *)new_root);
       }
-
+      else {
+        bt->InsertInternal(NULL, split_key, (char *)sibling, hdr.level + 1);
+      }
       return ret;
     }
   }
 
   // Search keys with linear Search
-  void linear_search_range (entry_key_t min, entry_key_t max, unsigned long* buf) {
+  void linear_search_range (const entry_key_t& min, const entry_key_t& max, unsigned long* buf) {
     int i, off = 0;
     uint8_t previous_switch_counter;
     Page* current = this;
@@ -615,8 +615,8 @@ public:
     }
   }
 
-  void* linear_search(entry_key_t key) {
-    int i;
+  void* linear_search(const entry_key_t& key) {
+    int i = 1;
     uint8_t previous_switch_counter;
     void* ret = NULL;
     void* t;
@@ -640,9 +640,9 @@ public:
 
           for (i = 1; records[i].ptr != NULL; ++i) {
             if ((k = records[i].key) == key) {
-              if (records[i - 1].key != records[i].key && records[i].ptr) {
+              if (records[i-1].ptr != (t = records[i].ptr)) {
                 if (k == records[i].key) {
-                  ret = records[i].ptr;
+                  ret = t;
                   break;
                 }
               }
@@ -651,9 +651,9 @@ public:
         } else { // Search from right to left
           for (i = count() - 1; i > 0; --i) {
             if ((k = records[i].key) == key) {
-              if (records[i - 1].key != records[i].key && records[i].ptr) {
+              if (records[i - 1].ptr != (t = records[i].ptr) && t) {
                 if (k == records[i].key) {
-                  ret = records[i].ptr;
+                  ret = t;
                   break;
                 }
               }
@@ -739,7 +739,7 @@ public:
     return nullptr;
   }
 
-  void* linear_search_entry(entry_key_t key) {
+  void* linear_search_entry(const entry_key_t& key) {
     int i = 1;
     uint8_t previous_switch_counter;
     void* ret = nullptr;

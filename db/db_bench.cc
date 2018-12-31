@@ -6,18 +6,18 @@
 #include <cstdio>
 #include <cstdlib>
 #include "db/db_impl.h"
-#include "db/version_set.h"
 #include "leveldb/cache.h"
 #include "leveldb/db.h"
 #include "leveldb/env.h"
+#include "leveldb/index.h"
 #include "leveldb/write_batch.h"
+#include "leveldb/persistant_pool.h"
 #include "port/port.h"
 #include "util/crc32c.h"
 #include "util/histogram.h"
 #include "util/mutexlock.h"
 #include "util/random.h"
 #include "util/testutil.h"
-#include "leveldb/index.h"
 #include "util/perf_log.h"
 
 
@@ -71,6 +71,12 @@ static double FLAGS_compression_ratio = 0.5;
 // Print histogram of operation timings
 static bool FLAGS_histogram = false;
 
+// Print info in CSV format
+static bool FLAGS_csv = false;
+
+// CSV file
+static FILE* csv_file;
+
 // Number of bytes to buffer in memtable before compacting
 // (initialized to default value by "main")
 static int FLAGS_write_buffer_size = 0;
@@ -102,8 +108,26 @@ static bool FLAGS_use_existing_db = false;
 // If true, reuse existing log/MANIFEST files when re-opening a database.
 static bool FLAGS_reuse_logs = false;
 
+// Range query size
+static int FLAGS_range_size = 1000;
+
 // Use the db with the following name.
 static const char* FLAGS_db = NULL;
+
+// trace dir
+static std::string FLAGS_trace;
+static bool FLAGS_ycsb = false;
+
+// Trace operation for YCSB
+struct Operation {
+  char operation_type;
+  uint64_t key;
+  uint64_t length;
+};
+
+std::vector<Operation> ycsb_trace;
+
+static std::unordered_map<std::string, leveldb::Histogram> ycsb_histogram_;
 
 namespace leveldb {
 
@@ -112,11 +136,11 @@ leveldb::Env* g_env = NULL;
 
 // Helper for quickly generating random data.
 class RandomGenerator {
- private:
+private:
   std::string data_;
   int pos_;
 
- public:
+public:
   RandomGenerator() {
     // We use a limited amount of data over and over again and ensure
     // that it is larger than the compression window (32KB), and also
@@ -165,7 +189,7 @@ static void AppendWithSpace(std::string* str, Slice msg) {
 }
 
 class Stats {
- private:
+private:
   double start_;
   double finish_;
   double seconds_;
@@ -173,10 +197,11 @@ class Stats {
   int next_report_;
   int64_t bytes_;
   double last_op_finish_;
+  double last_op_micros_;
   Histogram hist_;
   std::string message_;
 
- public:
+public:
   Stats() { Start(); }
 
   void Start() {
@@ -212,17 +237,22 @@ class Stats {
     AppendWithSpace(&message_, msg);
   }
 
+  const double LastOperationMicros() {
+    return last_op_micros_;
+  }
+
   void FinishedSingleOp() {
+    double now = g_env->NowMicros();
+    double micros = now - last_op_finish_;
     if (FLAGS_histogram) {
-      double now = g_env->NowMicros();
-      double micros = now - last_op_finish_;
       hist_.Add(micros);
       if (micros > 20000) {
         fprintf(stderr, "long op: %.1f micros%30s\r", micros, "");
         fflush(stderr);
       }
-      last_op_finish_ = now;
     }
+    last_op_finish_ = now;
+    last_op_micros_ = micros;
 
     done_++;
     if (done_ >= next_report_) {
@@ -264,8 +294,19 @@ class Stats {
             seconds_ * 1e6 / done_,
             (extra.empty() ? "" : " "),
             extra.c_str());
+    if (FLAGS_csv) {
+      fprintf(csv_file, "%s, %f, micros/op, %s,\n",
+              name.ToString().c_str(), seconds_ * 1e6 / done_, extra.c_str());
+      fflush(csv_file);
+    }
     if (FLAGS_histogram) {
-      fprintf(stdout, "Microseconds per op:\n%s\n", hist_.ToString().c_str());
+      if (FLAGS_csv) {
+        fprintf(csv_file, "%s", hist_.GetInfo().c_str());
+        fprintf(csv_file, "%s", hist_.GetHistogram().c_str());
+        fflush(csv_file);
+      } else {
+        fprintf(stdout, "Microseconds per op:\n%s\n", hist_.ToString().c_str());
+      }
     }
     fflush(stdout);
   }
@@ -298,15 +339,15 @@ struct ThreadState {
   SharedState* shared;
 
   ThreadState(int index)
-      : tid(index),
-        rand(1000 + index) {
+    : tid(index),
+      rand(1000 + index) {
   }
 };
 
 }  // namespace
 
 class Benchmark {
- private:
+private:
   Cache* cache_;
   const FilterPolicy* filter_policy_;
   DB* db_;
@@ -335,6 +376,10 @@ class Benchmark {
              / 1048576.0));
     PrintWarnings();
     fprintf(stdout, "------------------------------------------------\n");
+    if (FLAGS_csv) {
+      fprintf(csv_file, "Key size, %d, Value size, %d, Entries, %d, Raw size MB(estimated), %.1f, \n",
+              kKeySize, FLAGS_value_size, num_, (((int64_t)(kKeySize + FLAGS_value_size) * num_) / 1048576.0));
+    }
   }
 
   void PrintWarnings() {
@@ -393,18 +438,18 @@ class Benchmark {
 #endif
   }
 
- public:
+public:
   Benchmark()
-  : cache_(FLAGS_cache_size >= 0 ? NewLRUCache(FLAGS_cache_size) : NULL),
-    filter_policy_(FLAGS_bloom_bits >= 0
-                   ? NewBloomFilterPolicy(FLAGS_bloom_bits)
-                   : NULL),
-    db_(NULL),
-    num_(FLAGS_num),
-    value_size_(FLAGS_value_size),
-    entries_per_batch_(1),
-    reads_(FLAGS_reads < 0 ? FLAGS_num : FLAGS_reads),
-    heap_counter_(0) {
+    : cache_(FLAGS_cache_size >= 0 ? NewLRUCache(FLAGS_cache_size) : NULL),
+      filter_policy_(FLAGS_bloom_bits >= 0
+                     ? NewBloomFilterPolicy(FLAGS_bloom_bits)
+                     : NULL),
+      db_(NULL),
+      num_(FLAGS_num),
+      value_size_(FLAGS_value_size),
+      entries_per_batch_(1),
+      reads_(FLAGS_reads < 0 ? FLAGS_num : FLAGS_reads),
+      heap_counter_(0) {
     std::vector<std::string> files;
     g_env->GetChildren(FLAGS_db, &files);
     for (size_t i = 0; i < files.size(); i++) {
@@ -423,9 +468,51 @@ class Benchmark {
     delete filter_policy_;
   }
 
+  void LoadTrace(const std::string& trace_name) {
+    FILE* trace_file = fopen(trace_name.c_str(), "r");
+    if (trace_file == NULL) {
+      fprintf(stderr, "Error while opening trace file %s\n", trace_name.c_str());
+      exit(1);
+    }
+    // preparing trace
+    fprintf(stdout, "Reading trace\n");
+    size_t bufsize = 100;
+    char* buf = new char[100];
+    int status = getline(&buf, &bufsize, trace_file);
+    assert(status > 1);
+    uint64_t count;
+    sscanf(buf, "%lu\n", &count);
+    ycsb_trace.clear();
+    ycsb_trace.reserve(count);
+    for (uint64_t i = 0; i < count; i++) {
+      status = getline(&buf, &bufsize, trace_file);
+      assert(status > 1);
+      Operation operation;
+      sscanf(buf, "%c %lu %lu\n", &operation.operation_type, &operation.key, &operation.length);
+      ycsb_trace.emplace_back(operation);
+    }
+    delete[] buf;
+    fclose(trace_file);
+    fprintf(stdout, "Finished reading trace\n");
+    // clearing performance counters
+    for (auto& operations : ycsb_histogram_) {
+      operations.second.Clear();
+    }
+  }
+
   void Run() {
+    if (FLAGS_csv) {
+      csv_file = fopen("db_bench.csv", "w");
+    }
     PrintHeader();
     Open();
+    if (FLAGS_ycsb) {
+      // init performance counter for operations YCSB
+      ycsb_histogram_.insert({"insert", Histogram()});
+      ycsb_histogram_.insert({"read", Histogram()});
+      ycsb_histogram_.insert({"update", Histogram()});
+      ycsb_histogram_.insert({"scan", Histogram()});
+    }
 
     const char* benchmarks = FLAGS_benchmarks;
     while (benchmarks != NULL) {
@@ -484,8 +571,8 @@ class Benchmark {
       } else if (name == Slice("readrandom")) {
         method = &Benchmark::ReadRandom;
       } else if (name == Slice("rangequery")) {
-        ranges_ = 10;
-        range_size_ = 1000;
+        ranges_ = FLAGS_num / 5;
+        range_size_ = FLAGS_range_size;
         method = &Benchmark::RangeQuery;
       } else if (name == Slice("readmissing")) {
         method = &Benchmark::ReadMissing;
@@ -515,8 +602,42 @@ class Benchmark {
         method = &Benchmark::SnappyUncompress;
       } else if (name == Slice("heapprofile")) {
         HeapProfile();
+      } else if (name == Slice("waitcompaction")) {
+        method = &Benchmark::WaitCompaction;
+      } else if (name == Slice("loadworkload")) {
+        std::string trace_name = FLAGS_trace + "/trace_load.csv";
+        LoadTrace(trace_name);
+        method = &Benchmark::RunTrace;
+      } else if (name == Slice("workloada")) {
+        std::string trace_name = FLAGS_trace + "/trace_runa.csv";
+        LoadTrace(trace_name);
+        method = &Benchmark::RunTrace;
+      } else if (name == Slice("workloadb")) {
+        std::string trace_name = FLAGS_trace + "/trace_runb.csv";
+        LoadTrace(trace_name);
+        method = &Benchmark::RunTrace;
+      } else if (name == Slice("workloadc")) {
+        std::string trace_name = FLAGS_trace + "/trace_runc.csv";
+        LoadTrace(trace_name);
+        method = &Benchmark::RunTrace;
+      } else if (name == Slice("workloadd")) {
+        std::string trace_name = FLAGS_trace + "/trace_rund.csv";
+        LoadTrace(trace_name);
+        method = &Benchmark::RunTrace;
+      } else if (name == Slice("workloade")) {
+        std::string trace_name = FLAGS_trace + "/trace_rune.csv";
+        LoadTrace(trace_name);
+        method = &Benchmark::RunTrace;
+      } else if (name == Slice("workloadf")) {
+        std::string trace_name = FLAGS_trace + "/trace_runf.csv";
+        LoadTrace(trace_name);
+        method = &Benchmark::RunTrace;
       } else if (name == Slice("stats")) {
-        PrintStats("leveldb.stats");
+        if (FLAGS_csv) {
+          PrintStats("leveldb.csv");
+        } else {
+          PrintStats("leveldb.stats");
+        }
       } else if (name == Slice("sstables")) {
         PrintStats("leveldb.sstables");
       } else {
@@ -526,12 +647,38 @@ class Benchmark {
       }
 
       if (method != NULL) {
+#ifdef PERF_LOG
+        leveldb::benchmark::ClearPerfLog();
+#endif
         RunBenchmark(num_threads, name, method);
+        if (FLAGS_ycsb) {
+          FILE *file = FLAGS_csv ? csv_file : stdout;
+          std::string stats;
+          db_->GetProperty("leveldb.csv", &stats);
+          fprintf(file, "%s", stats.c_str());
+          for (const auto& histogram : ycsb_histogram_) {
+            fprintf(file, "%s\n", histogram.first.c_str());
+            fprintf(file, "%s", histogram.second.GetInfo().c_str());
+          }
+#ifdef PERF_LOG
+          fprintf(file, "%s\n", leveldb::benchmark::GetInfo().c_str());
+#endif
+          fflush(file);
+        }
       }
     }
+#ifdef PERF_LOG
+    if (FLAGS_csv) {
+      fprintf(csv_file, "%s", leveldb::benchmark::GetInfo().c_str());
+      if (FLAGS_histogram) {
+        fprintf(csv_file, "%s", leveldb::benchmark::GetHistogram().c_str());
+      }
+      fflush(csv_file);
+    }
+#endif
   }
 
- private:
+private:
   struct ThreadArg {
     Benchmark* bm;
     SharedState* shared;
@@ -702,7 +849,7 @@ class Benchmark {
     options.max_open_files = FLAGS_open_files;
     options.filter_policy = filter_policy_;
     options.reuse_logs = FLAGS_reuse_logs;
-    options.index = new leveldb::Index();
+    options.index = CreateBtreeIndex();
     Status s = DB::Open(options, FLAGS_db, &db_);
     if (!s.ok()) {
       fprintf(stderr, "open error: %s\n", s.ToString().c_str());
@@ -719,10 +866,12 @@ class Benchmark {
   }
 
   void WriteSeq(ThreadState* thread) {
+    Log(db_->GetLogger(), "[db_bench] Starting sequential write");
     DoWrite(thread, true);
   }
 
   void WriteRandom(ThreadState* thread) {
+    Log(db_->GetLogger(), "[db_bench] Starting random write");
     DoWrite(thread, false);
   }
 
@@ -740,9 +889,9 @@ class Benchmark {
     for (int i = 0; i < num_; i += entries_per_batch_) {
       batch.Clear();
       for (int j = 0; j < entries_per_batch_; j++) {
-        const int k = seq ? i+j : (thread->rand.Next() % FLAGS_num);
+        const uint64_t k = seq ? i+j : (thread->rand.Next() % FLAGS_num);
         char key[100];
-        snprintf(key, sizeof(key), "%016d", k);
+        snprintf(key, sizeof(key), config::key_format, k);
         batch.Put(key, gen.Generate(value_size_));
         bytes += value_size_ + strlen(key);
         thread->stats.FinishedSingleOp();
@@ -757,10 +906,11 @@ class Benchmark {
   }
 
   void ReadSequential(ThreadState* thread) {
+    Log(db_->GetLogger(), "[db_bench] Starting sequential read");
     Iterator* iter = db_->NewIterator(ReadOptions());
     int i = 0;
     int64_t bytes = 0;
-    string value;
+    std::string value;
     for (iter->SeekToFirst(); i < reads_ && iter->Valid(); iter->Next()) {
       bytes += iter->key().size() + iter->value().size();
       value = iter->value().ToString();
@@ -775,6 +925,7 @@ class Benchmark {
   }
 
   void ReadReverse(ThreadState* thread) {
+    Log(db_->GetLogger(), "[db_bench] Starting reverse read");
     Iterator* iter = db_->NewIterator(ReadOptions());
     int i = 0;
     int64_t bytes = 0;
@@ -788,13 +939,14 @@ class Benchmark {
   }
 
   void ReadRandom(ThreadState* thread) {
+    Log(db_->GetLogger(), "[db_bench] Starting random read");
     ReadOptions options;
     std::string value;
     int found = 0;
     for (int i = 0; i < reads_; i++) {
       char key[100];
-      const int k = thread->rand.Next() % FLAGS_num;
-      snprintf(key, sizeof(key), "%016d", k);
+      const uint64_t k = thread->rand.Next() % FLAGS_num;
+      snprintf(key, sizeof(key), config::key_format, k);
       if (db_->Get(options, key, &value).ok()) {
         found++;
       }
@@ -806,16 +958,17 @@ class Benchmark {
   }
 
   void RangeQuery(ThreadState* thread) {
+    Log(db_->GetLogger(), "[db_bench] Starting range query");
     ReadOptions options;
     std::string value;
     int64_t bytes = 0;
     for (int i = 0; i < ranges_; i++) {
-      const int k = abs((int)(thread->rand.Next() % FLAGS_num) - range_size_);
-      const int l = k + range_size_;
+      const uint64_t k = (thread->rand.Next() % FLAGS_num) - range_size_;
+      const uint64_t l = k + range_size_;
       char begin[100];
-      snprintf(begin, sizeof(begin), "%016d", k);
+      snprintf(begin, sizeof(begin), config::key_format, k);
       char end[100];
-      snprintf(end, sizeof(end), "%016d", l);
+      snprintf(end, sizeof(end), config::key_format, l);
       Iterator* iter = db_->NewIterator(options);
       int r = 0;
       for (iter->Seek(begin); r < range_size_ && iter->Valid(); iter->Next()) {
@@ -847,8 +1000,8 @@ class Benchmark {
     const int range = (FLAGS_num + 99) / 100;
     for (int i = 0; i < reads_; i++) {
       char key[100];
-      const int k = thread->rand.Next() % range;
-      snprintf(key, sizeof(key), "%016d", k);
+      const uint64_t k = thread->rand.Next() % range;
+      snprintf(key, sizeof(key), config::key_format, k);
       db_->Get(options, key, &value);
       thread->stats.FinishedSingleOp();
     }
@@ -860,8 +1013,8 @@ class Benchmark {
     for (int i = 0; i < reads_; i++) {
       Iterator* iter = db_->NewIterator(options);
       char key[100];
-      const int k = thread->rand.Next() % FLAGS_num;
-      snprintf(key, sizeof(key), "%016d", k);
+      const uint64_t k = thread->rand.Next() % FLAGS_num;
+      snprintf(key, sizeof(key), config::key_format, k);
       iter->Seek(key);
       if (iter->Valid() && iter->key() == key) found++;
       delete iter;
@@ -879,9 +1032,9 @@ class Benchmark {
     for (int i = 0; i < num_; i += entries_per_batch_) {
       batch.Clear();
       for (int j = 0; j < entries_per_batch_; j++) {
-        const int k = seq ? i+j : (thread->rand.Next() % FLAGS_num);
+        const uint64_t k = seq ? i+j : (thread->rand.Next() % FLAGS_num);
         char key[100];
-        snprintf(key, sizeof(key), "%016d", k);
+        snprintf(key, sizeof(key), config::key_format, k);
         batch.Delete(key);
         thread->stats.FinishedSingleOp();
       }
@@ -916,9 +1069,9 @@ class Benchmark {
           }
         }
 
-        const int k = thread->rand.Next() % FLAGS_num;
+        const uint64_t k = thread->rand.Next() % FLAGS_num;
         char key[100];
-        snprintf(key, sizeof(key), "%016d", k);
+        snprintf(key, sizeof(key), config::key_format, k);
         Status s = db_->Put(write_options_, key, gen.Generate(value_size_));
         if (!s.ok()) {
           fprintf(stderr, "put error: %s\n", s.ToString().c_str());
@@ -931,6 +1084,55 @@ class Benchmark {
     }
   }
 
+  void RunTrace(ThreadState* thread) {
+    RandomGenerator gen;
+    ReadOptions read_operations;
+    for (const auto& operation : ycsb_trace) {
+      Status s;
+      if (operation.operation_type == 'i') {
+        char key[100];
+        snprintf(key, sizeof(key), "%020lu", operation.key);
+        s = db_->Put(write_options_, key, gen.Generate(value_size_));
+        thread->stats.FinishedSingleOp();
+        ycsb_histogram_.at("insert").Add(thread->stats.LastOperationMicros());
+      } else if (operation.operation_type == 'r') {
+        char key[100];
+        snprintf(key, sizeof(key), "%020lu", operation.key);
+        std::string value;
+        s = db_->Get(read_operations, key, &value);
+        thread->stats.FinishedSingleOp();
+        ycsb_histogram_.at("read").Add(thread->stats.LastOperationMicros());
+      } else if (operation.operation_type == 'u') {
+        char key[100];
+        snprintf(key, sizeof(key), "%020lu", operation.key);
+        s = db_->Update(write_options_, key, gen.Generate(value_size_));
+        thread->stats.FinishedSingleOp();
+        ycsb_histogram_.at("update").Add(thread->stats.LastOperationMicros());
+      } else if (operation.operation_type == 's') {
+        char key[100];
+        snprintf(key, sizeof(key), "%020lu", operation.key);
+        int i = 0;
+        Iterator* it = db_->NewIterator(read_operations);
+        for (it->Seek(key); it->Valid() && i < operation.length; it->Next()) {
+          uint64_t size = it->key().ToString().size() + it->value().ToString().size();
+          i++;
+          thread->stats.FinishedSingleOp();
+          ycsb_histogram_.at("scan").Add(thread->stats.LastOperationMicros());
+        }
+        delete it;
+      }
+      if (!s.ok()) {
+        fprintf(stderr, "Error: %s\n", s.ToString().c_str());
+        exit(1);
+      }
+    }
+  }
+
+  void WaitCompaction(ThreadState* thread) {
+    Log(db_->GetLogger(), "[db_bench] Starting wait compaction");
+    db_->WaitComp();
+  }
+
   void Compact(ThreadState* thread) {
     db_->CompactRange(NULL, NULL);
   }
@@ -940,7 +1142,12 @@ class Benchmark {
     if (!db_->GetProperty(key, &stats)) {
       stats = "(failed)";
     }
-    fprintf(stdout, "\n%s\n", stats.c_str());
+    if (FLAGS_csv) {
+      fprintf(csv_file, "%s", stats.c_str());
+      fflush(csv_file);
+    } else {
+      fprintf(stdout, "\n%s\n", stats.c_str());
+    }
   }
 
   static void WriteToFile(void* arg, const char* buf, int n) {
@@ -969,13 +1176,15 @@ class Benchmark {
 
 int main(int argc, char** argv) {
 #ifdef PERF_LOG
-  leveldb::createPerfLog();
+  leveldb::benchmark::CreatePerfLog();
 #endif
   FLAGS_write_buffer_size = leveldb::Options().write_buffer_size;
   FLAGS_max_file_size = leveldb::Options().max_file_size;
   FLAGS_block_size = leveldb::Options().block_size;
   FLAGS_open_files = leveldb::Options().max_open_files;
   std::string default_db_path;
+  std::string nvm_dir;
+  size_t nvm_size = 0;
 
   for (int i = 1; i < argc; i++) {
     double d;
@@ -988,6 +1197,9 @@ int main(int argc, char** argv) {
     } else if (sscanf(argv[i], "--histogram=%d%c", &n, &junk) == 1 &&
                (n == 0 || n == 1)) {
       FLAGS_histogram = n;
+    } else if (sscanf(argv[i], "--csv=%d%c", &n, &junk) == 1 &
+               (n == 0 || n == 1)) {
+      FLAGS_csv = n;
     } else if (sscanf(argv[i], "--use_existing_db=%d%c", &n, &junk) == 1 &&
                (n == 0 || n == 1)) {
       FLAGS_use_existing_db = n;
@@ -1014,8 +1226,18 @@ int main(int argc, char** argv) {
       FLAGS_bloom_bits = n;
     } else if (sscanf(argv[i], "--open_files=%d%c", &n, &junk) == 1) {
       FLAGS_open_files = n;
+    } else if (sscanf(argv[i], "--range_size=%d%c", &n, &junk) == 1) {
+      FLAGS_range_size = n;
+    } else if (sscanf(argv[i], "--nvm_size=%d%c", &n, &junk) == 1) {
+      nvm_size = n;
+      nvm_size = nvm_size * 1024 * 1024;
     } else if (strncmp(argv[i], "--db=", 5) == 0) {
       FLAGS_db = argv[i] + 5;
+    } else if (strncmp(argv[i], "--nvm_dir=", 10) == 0) {
+      nvm_dir = argv[i] + 10;
+    } else if (strncmp(argv[i], "--trace_dir=", 12) == 0) {
+      FLAGS_trace = argv[i] + 12;
+      FLAGS_ycsb = true;
     } else {
       fprintf(stderr, "Invalid flag '%s'\n", argv[i]);
       exit(1);
@@ -1026,15 +1248,25 @@ int main(int argc, char** argv) {
 
   // Choose a location for the test database if none given with --db=<path>
   if (FLAGS_db == NULL) {
-      leveldb::g_env->GetTestDirectory(&default_db_path);
-      default_db_path += "/dbbench";
-      FLAGS_db = default_db_path.c_str();
+    leveldb::g_env->GetTestDirectory(&default_db_path);
+    default_db_path += "/dbbench";
+    FLAGS_db = default_db_path.c_str();
+  }
+
+  if (!nvm_dir.empty()) {
+    fprintf(stdout, "NVRAM pool: dir %s, size %lu\n", nvm_dir.data(), nvm_size);
+    leveldb::nvram::create_pool(nvm_dir, nvm_size);
+  } else {
+    fprintf(stdout, "NVRAM pool is not allocated\n");
+    fflush(stdout);
   }
 
   leveldb::Benchmark benchmark;
   benchmark.Run();
 #ifdef PERF_LOG
-  leveldb::closePerfLog();
+  leveldb::benchmark::ClosePerfLog();
 #endif
+  leveldb::nvram::stats();
+  leveldb::nvram::close_pool();
   return 0;
 }

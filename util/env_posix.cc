@@ -22,17 +22,10 @@
 #include "leveldb/env.h"
 #include "leveldb/slice.h"
 #include "port/port.h"
-#include "port/thread_annotations.h"
 #include "util/logging.h"
 #include "util/mutexlock.h"
 #include "util/posix_logger.h"
 #include "util/env_posix_test_helper.h"
-
-// HAVE_FDATASYNC is defined in the auto-generated port_config.h, which is
-// included by port_stdcxx.h.
-#if !HAVE_FDATASYNC
-#define fdatasync fsync
-#endif  // !HAVE_FDATASYNC
 
 namespace leveldb {
 
@@ -64,7 +57,7 @@ class Limiter {
 
   // If another resource is available, acquire it and return true.
   // Else return false.
-  bool Acquire() LOCKS_EXCLUDED(mu_) {
+  bool Acquire() {
     if (GetAllowed() <= 0) {
       return false;
     }
@@ -80,7 +73,7 @@ class Limiter {
 
   // Release a resource acquired by a previous call to Acquire() that returned
   // true.
-  void Release() LOCKS_EXCLUDED(mu_) {
+  void Release() {
     MutexLock l(&mu_);
     SetAllowed(GetAllowed() + 1);
   }
@@ -93,7 +86,8 @@ class Limiter {
     return reinterpret_cast<intptr_t>(allowed_.Acquire_Load());
   }
 
-  void SetAllowed(intptr_t v) EXCLUSIVE_LOCKS_REQUIRED(mu_) {
+  // REQUIRES: mu_ must be held
+  void SetAllowed(intptr_t v) {
     allowed_.Release_Store(reinterpret_cast<void*>(v));
   }
 
@@ -289,7 +283,7 @@ class PosixWritableFile : public WritableFile {
     const char* sep = strrchr(f, '/');
     Slice basename;
     std::string dir;
-    if (sep == nullptr) {
+    if (sep == NULL) {
       dir = ".";
       basename = f;
     } else {
@@ -397,7 +391,7 @@ class PosixEnv : public Env {
                                    SequentialFile** result) {
     int fd = open(fname.c_str(), O_RDONLY);
     if (fd < 0) {
-      *result = nullptr;
+      *result = NULL;
       return PosixError(fname, errno);
     } else {
       *result = new PosixSequentialFile(fname, fd);
@@ -407,7 +401,7 @@ class PosixEnv : public Env {
 
   virtual Status NewRandomAccessFile(const std::string& fname,
                                      RandomAccessFile** result) {
-    *result = nullptr;
+    *result = NULL;
     Status s;
     int fd = open(fname.c_str(), O_RDONLY);
     if (fd < 0) {
@@ -416,7 +410,7 @@ class PosixEnv : public Env {
       uint64_t size;
       s = GetFileSize(fname, &size);
       if (s.ok()) {
-        void* base = mmap(nullptr, size, PROT_READ, MAP_SHARED, fd, 0);
+        void* base = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);
         if (base != MAP_FAILED) {
           *result = new PosixMmapReadableFile(fname, base, size, &mmap_limit_);
         } else {
@@ -438,7 +432,7 @@ class PosixEnv : public Env {
     Status s;
     int fd = open(fname.c_str(), O_TRUNC | O_WRONLY | O_CREAT, 0644);
     if (fd < 0) {
-      *result = nullptr;
+      *result = NULL;
       s = PosixError(fname, errno);
     } else {
       *result = new PosixWritableFile(fname, fd);
@@ -451,7 +445,7 @@ class PosixEnv : public Env {
     Status s;
     int fd = open(fname.c_str(), O_APPEND | O_WRONLY | O_CREAT, 0644);
     if (fd < 0) {
-      *result = nullptr;
+      *result = NULL;
       s = PosixError(fname, errno);
     } else {
       *result = new PosixWritableFile(fname, fd);
@@ -467,11 +461,11 @@ class PosixEnv : public Env {
                              std::vector<std::string>* result) {
     result->clear();
     DIR* d = opendir(dir.c_str());
-    if (d == nullptr) {
+    if (d == NULL) {
       return PosixError(dir, errno);
     }
     struct dirent* entry;
-    while ((entry = readdir(d)) != nullptr) {
+    while ((entry = readdir(d)) != NULL) {
       result->push_back(entry->d_name);
     }
     closedir(d);
@@ -523,7 +517,7 @@ class PosixEnv : public Env {
   }
 
   virtual Status LockFile(const std::string& fname, FileLock** lock) {
-    *lock = nullptr;
+    *lock = NULL;
     Status result;
     int fd = open(fname.c_str(), O_RDWR | O_CREAT, 0644);
     if (fd < 0) {
@@ -558,6 +552,8 @@ class PosixEnv : public Env {
 
   virtual void Schedule(void (*function)(void*), void* arg);
 
+  virtual bool IsSchedulerEmpty();
+
   virtual void StartThread(void (*function)(void* arg), void* arg);
 
   virtual Status GetTestDirectory(std::string* result) {
@@ -583,8 +579,8 @@ class PosixEnv : public Env {
 
   virtual Status NewLogger(const std::string& fname, Logger** result) {
     FILE* f = fopen(fname.c_str(), "w");
-    if (f == nullptr) {
-      *result = nullptr;
+    if (f == NULL) {
+      *result = NULL;
       return PosixError(fname, errno);
     } else {
       *result = new PosixLogger(f, &PosixEnv::gettid);
@@ -594,7 +590,7 @@ class PosixEnv : public Env {
 
   virtual uint64_t NowMicros() {
     struct timeval tv;
-    gettimeofday(&tv, nullptr);
+    gettimeofday(&tv, NULL);
     return static_cast<uint64_t>(tv.tv_sec) * 1000000 + tv.tv_usec;
   }
 
@@ -614,7 +610,7 @@ class PosixEnv : public Env {
   void BGThread();
   static void* BGThreadWrapper(void* arg) {
     reinterpret_cast<PosixEnv*>(arg)->BGThread();
-    return nullptr;
+    return NULL;
   }
 
   pthread_mutex_t mu_;
@@ -664,8 +660,8 @@ PosixEnv::PosixEnv()
     : started_bgthread_(false),
       mmap_limit_(MaxMmaps()),
       fd_limit_(MaxOpenFiles()) {
-  PthreadCall("mutex_init", pthread_mutex_init(&mu_, nullptr));
-  PthreadCall("cvar_init", pthread_cond_init(&bgsignal_, nullptr));
+  PthreadCall("mutex_init", pthread_mutex_init(&mu_, NULL));
+  PthreadCall("cvar_init", pthread_cond_init(&bgsignal_, NULL));
 }
 
 void PosixEnv::Schedule(void (*function)(void*), void* arg) {
@@ -676,7 +672,7 @@ void PosixEnv::Schedule(void (*function)(void*), void* arg) {
     started_bgthread_ = true;
     PthreadCall(
         "create thread",
-        pthread_create(&bgthread_, nullptr,  &PosixEnv::BGThreadWrapper, this));
+        pthread_create(&bgthread_, NULL,  &PosixEnv::BGThreadWrapper, this));
   }
 
   // If the queue is currently empty, the background thread may currently be
@@ -693,8 +689,14 @@ void PosixEnv::Schedule(void (*function)(void*), void* arg) {
   PthreadCall("unlock", pthread_mutex_unlock(&mu_));
 }
 
+bool PosixEnv::IsSchedulerEmpty() {
+  return queue_.empty();
+}
+
 void PosixEnv::BGThread() {
-  while (true) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmissing-noreturn"
+  for (;;) {
     // Wait until there is an item that is ready to run
     PthreadCall("lock", pthread_mutex_lock(&mu_));
     while (queue_.empty()) {
@@ -708,6 +710,7 @@ void PosixEnv::BGThread() {
     PthreadCall("unlock", pthread_mutex_unlock(&mu_));
     (*function)(arg);
   }
+#pragma clang diagnostic pop
 }
 
 namespace {
@@ -720,7 +723,7 @@ static void* StartThreadWrapper(void* arg) {
   StartThreadState* state = reinterpret_cast<StartThreadState*>(arg);
   state->user_function(state->arg);
   delete state;
-  return nullptr;
+  return NULL;
 }
 
 void PosixEnv::StartThread(void (*function)(void* arg), void* arg) {
@@ -729,7 +732,7 @@ void PosixEnv::StartThread(void (*function)(void* arg), void* arg) {
   state->user_function = function;
   state->arg = arg;
   PthreadCall("start thread",
-              pthread_create(&t, nullptr,  &StartThreadWrapper, state));
+              pthread_create(&t, NULL,  &StartThreadWrapper, state));
 }
 
 }  // namespace
@@ -739,12 +742,12 @@ static Env* default_env;
 static void InitDefaultEnv() { default_env = new PosixEnv; }
 
 void EnvPosixTestHelper::SetReadOnlyFDLimit(int limit) {
-  assert(default_env == nullptr);
+  assert(default_env == NULL);
   open_read_only_file_limit = limit;
 }
 
 void EnvPosixTestHelper::SetReadOnlyMMapLimit(int limit) {
-  assert(default_env == nullptr);
+  assert(default_env == NULL);
   mmap_limit = limit;
 }
 

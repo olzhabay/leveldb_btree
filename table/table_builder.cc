@@ -70,7 +70,7 @@ struct TableBuilder::Rep {
   }
 };
 
-TableBuilder::TableBuilder(const Options& options, WritableFile* file, uint32_t number)
+TableBuilder::TableBuilder(const Options& options, WritableFile* file, uint64_t number)
     : rep_(new Rep(options, file, number)) {
   if (rep_->filter_block != NULL) {
     rep_->filter_block->StartBlock(0);
@@ -229,7 +229,7 @@ Status TableBuilder::Finish() {
   BlockHandle filter_block_handle, metaindex_block_handle, index_block_handle;
 
   // Write filter block
-  if (ok() && r->filter_block != NULL) {
+  if (ok() && r->filter_block != nullptr) {
     WriteRawBlock(r->filter_block->Finish(), kNoCompression,
                   &filter_block_handle);
   }
@@ -237,7 +237,7 @@ Status TableBuilder::Finish() {
   // Write metaindex block
   if (ok()) {
     BlockBuilder meta_index_block(&r->options);
-    if (r->filter_block != NULL) {
+    if (r->filter_block != nullptr) {
       // Add mapping from "filter.Name" to location of filter data
       std::string key = "filter.";
       key.append(r->options.filter_policy->Name());
@@ -281,7 +281,7 @@ Status TableBuilder::Finish() {
     r->status = r->file->Close();
   }
   r->index->AddQueue(r->index_queue);
-  assert(r->index_queue.size() == 0);
+  assert(r->index_queue.empty());
   return r->status;
 }
 

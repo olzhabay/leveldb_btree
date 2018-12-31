@@ -15,9 +15,9 @@
 #ifndef STORAGE_LEVELDB_INCLUDE_SLICE_H_
 #define STORAGE_LEVELDB_INCLUDE_SLICE_H_
 
-#include <assert.h>
-#include <stddef.h>
-#include <string.h>
+#include <cassert>
+#include <cstddef>
+#include <cstring>
 #include <string>
 #include "leveldb/export.h"
 
@@ -26,7 +26,7 @@ namespace leveldb {
 class LEVELDB_EXPORT Slice {
  public:
   // Create an empty slice.
-  Slice() : data_(nullptr), size_(0) { }
+  Slice() : data_(""), size_(0) { }
 
   // Create a slice that refers to d[0,n-1].
   Slice(const char* d, size_t n) : data_(d), size_(n) { }
@@ -36,10 +36,6 @@ class LEVELDB_EXPORT Slice {
 
   // Create a slice that refers to s[0,strlen(s)-1]
   Slice(const char* s) : data_(s), size_(strlen(s)) { }
-
-  // Intentionally copyable.
-  Slice(const Slice&) = default;
-  Slice& operator=(const Slice&) = default;
 
   // Return a pointer to the beginning of the referenced data
   const char* data() const { return data_; }
@@ -106,6 +102,22 @@ inline int Slice::compare(const Slice& b) const {
     else if (size_ > b.size_) r = +1;
   }
   return r;
+}
+
+inline bool operator<(const Slice& x, const Slice& y) {
+  return x.compare(y) < 0;
+}
+
+inline bool operator<=(const Slice& x, const Slice& y) {
+  return x.compare(y) <= 0;
+}
+
+inline bool operator>(const Slice& x, const Slice& y) {
+  return x.compare(y) > 0;
+}
+
+inline bool operator>=(const Slice& x, const Slice& y) {
+  return x.compare(y) >= 0;
 }
 
 }  // namespace leveldb

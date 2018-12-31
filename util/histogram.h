@@ -10,7 +10,7 @@
 namespace leveldb {
 
 class Histogram {
- public:
+public:
   Histogram() { }
   ~Histogram() { }
 
@@ -19,13 +19,16 @@ class Histogram {
   void Merge(const Histogram& other);
 
   std::string ToString() const;
+  std::string GetInfo() const;
+  std::string GetHistogram() const;
 
- private:
+private:
   double min_;
   double max_;
   double num_;
   double sum_;
   double sum_squares_;
+  double b_count_;
 
   enum { kNumBuckets = 154 };
   static const double kBucketLimit[kNumBuckets];

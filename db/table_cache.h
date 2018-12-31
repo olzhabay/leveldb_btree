@@ -13,6 +13,7 @@
 #include "leveldb/cache.h"
 #include "leveldb/table.h"
 #include "port/port.h"
+#include "leveldb/index.h"
 
 namespace leveldb {
 
@@ -59,12 +60,10 @@ class TableCache {
   // If a seek to internal key "k" in specified file finds an entry,
   // call (*handle_result)(arg, found_key, found_value).
   Status Get(const ReadOptions& options,
-              const uint16_t& file_number,
-              const uint32_t& offset,
-              const uint16_t& size,
-              const Slice& k,
-              void* arg,
-              void(*handle_result)(void*, const Slice&, const Slice&));
+             const IndexMeta* index,
+             const Slice& k,
+             void* arg,
+             void(*handle_result)(void*, const Slice&, const Slice&));
 
   Status Get(const ReadOptions& options,
              uint64_t file_number,
@@ -74,10 +73,8 @@ class TableCache {
              void (*handle_result)(void*, const Slice&, const Slice&));
 
   Status GetBlockIterator(const ReadOptions& options,
-                          const u_int16_t file_number,
-                          const uint32_t& offset,
-                          const uint16_t& size,
-                          Iterator** iterator);
+                            const IndexMeta* index,
+                            Iterator** iterator);
 
   Status GetTable(uint64_t file_number, TableHandle* table_handle);
 

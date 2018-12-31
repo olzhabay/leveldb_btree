@@ -5,8 +5,8 @@
 #ifndef STORAGE_LEVELDB_INCLUDE_DB_H_
 #define STORAGE_LEVELDB_INCLUDE_DB_H_
 
-#include <stdint.h>
-#include <stdio.h>
+#include <cstdint>
+#include <cstdio>
 #include "leveldb/export.h"
 #include "leveldb/iterator.h"
 #include "leveldb/options.h"
@@ -35,7 +35,7 @@ struct LEVELDB_EXPORT Range {
   Slice start;          // Included in the range
   Slice limit;          // Not included in the range
 
-  Range() { }
+  Range() = default;
   Range(const Slice& s, const Slice& l) : start(s), limit(l) { }
 };
 
@@ -53,8 +53,10 @@ class LEVELDB_EXPORT DB {
                      const std::string& name,
                      DB** dbptr);
 
-  DB() { }
+  DB() = default;
   virtual ~DB();
+
+  virtual Logger* GetLogger() const = 0;
 
   // Set the database entry for "key" to "value".  Returns OK on success,
   // and a non-OK status on error.
@@ -73,6 +75,10 @@ class LEVELDB_EXPORT DB {
   // Returns OK on success, non-OK on failure.
   // Note: consider setting options.sync = true.
   virtual Status Write(const WriteOptions& options, WriteBatch* updates) = 0;
+
+  // Updates value for a given "key" to "value". Returns OK on success,
+  // and a non-OK status on error. Non-existing key does not insert.
+  virtual Status Update(const WriteOptions& options, const Slice& key, const Slice& value) = 0;
 
   // If the database contains an entry for "key" store the
   // corresponding value in *value and return OK.
@@ -142,6 +148,8 @@ class LEVELDB_EXPORT DB {
   // Therefore the following call will compact the entire database:
   //    db->CompactRange(NULL, NULL);
   virtual void CompactRange(const Slice* begin, const Slice* end) = 0;
+
+  virtual void WaitComp() = 0;
 
  private:
   // No copying allowed

@@ -3,7 +3,7 @@
 
 namespace leveldb {
 
-FFBtreeIterator::FFBtreeIterator(FFBtree* b) {
+FFBtreeIterator::FFBtreeIterator(FFBtree* b) : valid(true), last(false) {
   btree = b;
   SeekToFirst();
 }
@@ -13,69 +13,58 @@ bool FFBtreeIterator::Valid() const {
 }
 
 void FFBtreeIterator::SeekToFirst() {
-	Page* page = (Page*)btree->root;
-	while(page->hdr.leftmost_ptr != NULL) {
-		page = page->hdr.leftmost_ptr;
-	}
-	cur_page = page;
-	cur = &(page->records[0]);
-	index = 0;
+  Page* page = (Page*)btree->root;
+  while(page->hdr.leftmost_ptr != NULL) {
+    page = page->hdr.leftmost_ptr;
+  }
+  cur_page = page;
+  cur = &(page->records[0]);
+  index = 0;
   valid = cur != NULL;
 }
 
 void FFBtreeIterator::SeekToLast() {
-	Page* page = (Page*)btree->root;
-	while(page->hdr.leftmost_ptr != NULL) {
-		page = page->hdr.leftmost_ptr;
-	}
-	while(page->hdr.sibling_ptr != NULL) {
-		page = page->hdr.sibling_ptr;
-	}
-	cur_page = page;
-	cur = &(cur_page->records[cur_page->count()-1]);
-	index = cur_page->count()-1;
+  Page* page = (Page*)btree->root;
+  while(page->hdr.leftmost_ptr != NULL) {
+    page = page->hdr.leftmost_ptr;
+  }
+  while(page->hdr.sibling_ptr != NULL) {
+    page = page->hdr.sibling_ptr;
+  }
+  cur_page = page;
+  cur = &(cur_page->records[cur_page->count()-1]);
+  index = cur_page->count()-1;
   valid = cur != NULL;
 }
 
-void FFBtreeIterator::Seek(const int64_t& key) {
-	Page* page = (Page*)btree->root;
-	// search until leaf node
-	while(page->hdr.leftmost_ptr!=NULL) {
-		page = (Page*)page->linear_search(key);
-	}
+void FFBtreeIterator::Seek(const entry_key_t& key) {
+  Page* page = (Page*)btree->root;
+  // search until leaf node
+  while(page->hdr.leftmost_ptr!=NULL) {
+    page = (Page*)page->linear_search(key);
+  }
   uint8_t previous_switch_counter;
   int i;
   Entry* ret = nullptr;
   do {
+    int record_count = page->count();
     do {
       previous_switch_counter = page->hdr.switch_counter;
       ret = nullptr;
       if (IS_FORWARD(previous_switch_counter)) {
-        if (page->records[0].key == key && page->records[0].ptr != nullptr) {
-          ret = &page->records[0];
-          index = 0;
-          continue;
-        }
-        for (i = 1; page->records[i].ptr != nullptr; ++i) {
-          if (page->records[i].key == key && page->records[i].ptr != nullptr) {
+        for (i = 0; page->records[i].ptr != nullptr && i < record_count; ++i) {
+          if (page->records[i].key >= key && page->records[i].ptr != nullptr) {
             ret = &page->records[i];
             index = i;
             break;
           }
         }
       } else {
-        for (i = page->count() - 1; i > 0; --i) {
-          if (page->records[i].key == key && page->records[i].ptr != nullptr) {
+        for (i = record_count - 1; i >= 0; --i) {
+          if (page->records[i].key >= key && page->records[i].ptr != nullptr) {
             ret = &page->records[i];
             index = i;
             break;
-          }
-        }
-        if (!ret) {
-          if (page->records[0].key == key && page->records[0].ptr != nullptr) {
-            ret = &page->records[0];
-            index = 0;
-            continue;
           }
         }
       }
@@ -87,37 +76,41 @@ void FFBtreeIterator::Seek(const int64_t& key) {
     }
   } while (page != page->hdr.sibling_ptr
            && (page = page->hdr.sibling_ptr)
-           && key >= page->records[0].key);
+           && !ret);
 
   valid = ret != nullptr;
 }
 
 void FFBtreeIterator::Next() {
-	if (cur_page->records[index+1].ptr == nullptr) {
-		if (cur_page->hdr.sibling_ptr != nullptr) {
-			cur_page = cur_page->hdr.sibling_ptr;
-			cur = &(cur_page->records[0]);
-			index = 0;
-		}
-	} else {
-		index = index+1;
-		cur = &(cur_page->records[index]);
-	}
-	// if this is a last key, make invalid
-	if ((cur_page->records[index+1].ptr == nullptr || cur_page->records[index+1].key == -1) && cur_page->hdr.sibling_ptr == nullptr) {
-	  valid = false;
-	}
+  if (last) {
+    valid = false;
+    return;
+  }
+  if (cur_page->records[index+1].ptr == nullptr) {
+    if (cur_page->hdr.sibling_ptr != nullptr) {
+      cur_page = cur_page->hdr.sibling_ptr;
+      cur = &(cur_page->records[0]);
+      index = 0;
+    }
+  } else {
+    index = index+1;
+    cur = &(cur_page->records[index]);
+  }
+  // if this is a last key, make invalid
+  if (cur_page->records[index+1].ptr == nullptr && cur_page->hdr.sibling_ptr == nullptr) {
+    last = true;
+  }
 }
 
 void FFBtreeIterator::Prev() {
-	if(index == 0) {
-	} else {
-		index = index-1;
-		cur = &(cur_page->records[index]);
-	}
+  if(index == 0) {
+  } else {
+    index = index-1;
+    cur = &(cur_page->records[index]);
+  }
 }
 
-int64_t FFBtreeIterator::key() const {
+entry_key_t FFBtreeIterator::key() const {
   return cur->key;
 }
 

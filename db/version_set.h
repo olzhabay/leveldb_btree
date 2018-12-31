@@ -193,6 +193,9 @@ class VersionSet {
   // Return table cache
   TableCache* cache() { return table_cache_; }
 
+  // Return options config
+  const Options* const options() { return options_; }
+
   // Return the current manifest file number
   uint64_t ManifestFileNumber() const { return manifest_file_number_; }
 
