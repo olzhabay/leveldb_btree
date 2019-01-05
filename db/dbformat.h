@@ -20,6 +20,7 @@ namespace leveldb {
 // parameters set via options.
 namespace config {
 
+// [B-tree] Added
 static constexpr char key_format[] = "%020lu";
 static const int kNumLevels = 7;
 

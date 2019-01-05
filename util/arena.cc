@@ -17,6 +17,7 @@ Arena::Arena() : memory_usage_(nullptr) {
 
 Arena::~Arena() {
   for (auto& block : blocks_) {
+    // [B-tree] Added
     nvram::pfree(block);
   }
 }
@@ -59,6 +60,7 @@ char* Arena::AllocateAligned(size_t bytes) {
 }
 
 char* Arena::AllocateNewBlock(size_t block_bytes) {
+  // [B-tree] Added
   char *result = (char*) nvram::pmalloc(block_bytes);
   blocks_.push_back(result);
   memory_usage_.NoBarrier_Store(

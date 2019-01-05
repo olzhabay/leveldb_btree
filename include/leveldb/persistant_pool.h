@@ -3,7 +3,7 @@
 
 #include <string>
 
-
+// [B-tree] Added
 namespace leveldb {
 
 namespace nvram {

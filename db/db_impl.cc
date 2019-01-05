@@ -464,6 +464,7 @@ Status DBImpl::RecoverLogFile(uint64_t log_number, bool last_log,
 
   delete file;
 
+  // [B-tree] Added
   // See if we should keep reusing the last log file.
   if (status.ok() && options_.reuse_logs && last_log && compactions == 0 &&
       !options_.disable_recovery_log) {
@@ -1002,6 +1003,7 @@ Status DBImpl::DoCompactionWork(CompactionState* compact) {
         compact->compaction->IsBaseLevelForKey(ikey.user_key),
         (int)last_sequence_for_key, (int)compact->smallest_snapshot);
 #endif
+    // [B-tree] Added
     auto m_ = index_->Get(ExtractUserKey(key));
     assert(m_ != nullptr);
     if (!compact->compaction->IsInput(m_->file_number)) {
@@ -1105,6 +1107,7 @@ Iterator* DBImpl::NewInternalIterator(const ReadOptions& options,
     list.push_back(imm_->NewIterator());
     imm_->Ref();
   }
+  // [B-tree] Added
   list.push_back(index_->NewIterator(options, table_cache_));
   Iterator* internal_iter =
           NewMergingIterator(&internal_comparator_, &list[0], list.size());
@@ -1248,6 +1251,7 @@ Status DBImpl::Write(const WriteOptions& options, WriteBatch* my_batch) {
     {
       mutex_.Unlock();
       bool sync_error = false;
+      // [B-tree] Added
       if (!options_.disable_recovery_log) {
         status = log_->AddRecord(WriteBatchInternal::Contents(updates));
         if (status.ok() && options.sync) {
@@ -1380,6 +1384,7 @@ Status DBImpl::MakeRoomForWrite(bool force) {
       Log(options_.info_log, "Too many L0 files; waiting...\n");
       bg_cv_.Wait();
     } else {
+      // [B-tree] Added
       // Attempt to switch to a new memtable and trigger compaction of old
       if (!options_.disable_recovery_log) {
         assert(versions_->PrevLogNumber() == 0);
@@ -1436,23 +1441,40 @@ bool DBImpl::GetProperty(const Slice& property, std::string* value) {
              "                               Compactions\n"
              "Level  Files Size(MB) Time(sec) Read(MB) Write(MB)\n"
              "--------------------------------------------------\n"
-             );
+    );
     value->append(buf);
     for (int level = 0; level < config::kNumLevels; level++) {
       int files = versions_->NumLevelFiles(level);
       if (stats_[level].micros > 0 || files > 0) {
         snprintf(
-            buf, sizeof(buf),
-            "%3d %8d %8.0f %9.0f %8.0f %9.0f\n",
-            level,
-            files,
-            versions_->NumLevelBytes(level) / 1048576.0,
-            stats_[level].micros / 1e6,
-            stats_[level].bytes_read / 1048576.0,
-            stats_[level].bytes_written / 1048576.0);
+          buf, sizeof(buf),
+          "%3d %8d %8.0f %9.0f %8.0f %9.0f\n",
+          level,
+          files,
+          versions_->NumLevelBytes(level) / 1048576.0,
+          stats_[level].micros / 1e6,
+          stats_[level].bytes_read / 1048576.0,
+          stats_[level].bytes_written / 1048576.0);
         value->append(buf);
       }
     }
+    return true;
+  } else if (in == "csv") {
+    char buf[200];
+    snprintf(buf, sizeof(buf),
+             "Level, Files, Size(MB), C Time(sec), C Read(MB), C Write(MB),\n");
+    value->append(buf);
+    int sum[5] = {0};
+    for (int level = 0; level < config::kNumLevels; level++) {
+      sum[0] += versions_->NumLevelFiles(level);
+      sum[1] += versions_->NumLevelBytes(level) / 1048576.0;
+      sum[2] += stats_[level].micros / 1e6;
+      sum[3] += stats_[level].bytes_read / 1048576.0;
+      sum[4] += stats_[level].bytes_written / 1048576.0;
+    }
+    snprintf(buf, sizeof(buf), "Total, %d, %d, %d, %d, %d,\n",
+             sum[0], sum[1], sum[2], sum[3], sum[4]);
+    value->append(buf);
     return true;
   } else if (in == "sstables") {
     *value = versions_->current()->DebugString();
@@ -1508,6 +1530,7 @@ Status DBImpl::Update(const WriteOptions &options, const Slice &key, const Slice
   MemTable* imm = imm_;
   mem->Ref();
   if (imm != nullptr) imm->Ref();
+  // [B-tree] Added
   Index* index = index_;
   bool exists = false;
   std::string v;
@@ -1568,6 +1591,7 @@ Status DB::Open(const Options& options, const std::string& dbname,
   // do not recover from logs
    s = impl->Recover(&edit, &save_manifest);
   if (s.ok() && impl->mem_ == NULL) {
+    // [B-tree] Added
     // Create new log and a corresponding memtable.
     if (!options.disable_recovery_log) {
       uint64_t new_log_number = impl->versions_->NewFileNumber();

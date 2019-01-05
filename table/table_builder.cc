@@ -30,6 +30,7 @@ struct TableBuilder::Rep {
   std::string last_key;
   int64_t num_entries;
   int64_t total_size;
+  // [B-tree] Added
   std::deque<KeyAndMeta> index_queue;
   uint32_t fnumber;
   bool closed;          // Either Finish() or Abandon() has been called.
@@ -128,6 +129,7 @@ void TableBuilder::Add(const Slice& key, const Slice& value) {
   r->last_key.assign(key.data(), key.size());
   r->num_entries++;
   r->data_block.Add(key, value);
+  // [B-tree] Added
   // add to index queue block meta
   KeyAndMeta key_meta;
   key_meta.key = fast_atoi(ExtractUserKey(key));
@@ -281,6 +283,7 @@ Status TableBuilder::Finish() {
   if (r->status.ok()) {
     r->status = r->file->Close();
   }
+  // [B-tree] Added
   r->index->AddQueue(r->index_queue);
   assert(r->index_queue.empty());
   return r->status;

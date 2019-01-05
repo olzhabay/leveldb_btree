@@ -342,6 +342,7 @@ Status Version::Get(const ReadOptions& options,
   Slice user_key = key.user_key();
   const Comparator* ucmp = vset_->icmp_.user_comparator();
 
+  // [B-tree] Added
   Index* index = vset_->options()->index;
 
 #ifdef PERF_LOG
@@ -358,6 +359,7 @@ Status Version::Get(const ReadOptions& options,
     saver.ucmp = ucmp;
     saver.user_key = user_key;
     saver.value = val;
+    // [B-tree] Added
     s = vset_->cache()->Get(options, index_meta, ikey, &saver, SaveValue);
     if (!s.ok()) {
       return s;

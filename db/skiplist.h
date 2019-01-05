@@ -185,6 +185,7 @@ typename SkipList<Key,Comparator>::Node*
 SkipList<Key,Comparator>::NewNode(const Key& key, int height) {
   char* mem = arena_->AllocateAligned(
     sizeof(Node) + sizeof(port::AtomicPointer) * (height - 1));
+  // [B-tree] Added
   clflush(mem, sizeof(Node) + sizeof(port::AtomicPointer) * (height - 1));
   return new (mem) Node(key);
 }
@@ -368,6 +369,7 @@ void SkipList<Key,Comparator>::Insert(const Key& key) {
     // we publish a pointer to "x" in prev[i].
     x->NoBarrier_SetNext(i, prev[i]->NoBarrier_Next(i));
     prev[i]->SetNext(i, x);
+    // [B-tree] Added
     if (i == 0) {
       clflush((char *) x->Next(i), sizeof(Node *));
       clflush((char *) prev[i]->Next(i), sizeof(Node *));

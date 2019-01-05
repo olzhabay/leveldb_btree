@@ -34,6 +34,7 @@ Status BuildTable(const std::string& dbname,
     TableBuilder* builder = new TableBuilder(options, file, meta->number);
     meta->smallest.DecodeFrom(iter->key());
     Slice prev_key;
+    // [B-tree] Added
     for (; iter->Valid(); iter->Next()) {
       Slice key = iter->key();
       Slice value = iter->value();

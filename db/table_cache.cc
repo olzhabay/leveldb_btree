@@ -109,6 +109,7 @@ Iterator* TableCache::NewIterator(const ReadOptions& options,
   return result;
 }
 
+// [B-tree] Added
 Status TableCache::Get(const ReadOptions& options,
                        const IndexMeta* index,
                        const Slice& k,
@@ -156,6 +157,7 @@ Status TableCache::Get(const ReadOptions& options,
   return s;
 }
 
+// [B-tree] Added
 Status TableCache::GetBlockIterator(const ReadOptions& options,
                                     const IndexMeta* index,
                                     Iterator** iterator) {
